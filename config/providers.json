@@ -1,0 +1,27 @@
+{
+  "comment": "Per-provider monthly soft limits + retry policy. Verified 2026-10-03: Solana Tracker free tier = 2,500 req/month @ 3 req/s; Bitquery dev tier = 10K points first month (points, not calls — soft_limit counts API calls conservatively); pump.fun frontend API is keyless and unmetered (soft limit is self-imposed politeness); GeckoTerminal free ~30 req/min (self-imposed monthly cap).",
+  "providers": {
+    "pumpfun": {
+      "base_url": "https://frontend-api-v3.pump.fun",
+      "soft_limit_month": 50000,
+      "page_size": 50,
+      "throttle_ms": 350
+    },
+    "solanatracker": {
+      "base_url": "https://data.solanatracker.io",
+      "soft_limit_month": 2400,
+      "throttle_ms": 400
+    },
+    "bitquery": {
+      "base_url": "https://streaming.bitquery.io/eap",
+      "soft_limit_month": 900,
+      "throttle_ms": 6500
+    },
+    "geckoterminal": {
+      "base_url": "https://api.geckoterminal.com/api/v2",
+      "soft_limit_month": 5000,
+      "throttle_ms": 2100
+    }
+  },
+  "retry": { "attempts": 3, "backoff_ms": 800, "backoff_factor": 2.5 }
+}

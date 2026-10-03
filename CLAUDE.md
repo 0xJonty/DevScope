@@ -1,0 +1,60 @@
+# CLAUDE.md — Deployer Intelligence Platform
+
+Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 feature: Deployer Scan.
+**`PLAN.md` is the authoritative spec — read it before architectural work. This file governs how you work in this repo.**
+
+## Project snapshot
+
+- TypeScript everywhere. Node LTS. Fastify backend + SSE, React/Vite/Tailwind frontend, SQLite via Drizzle.
+- Two-layer rule (never violate): **Layer A** deterministic code handles all bulk data (enumeration, ATH scoring, classification, filtering, quota, cache). **Layer B** Claude Agent SDK (subscription auth) only ever receives curated dossiers (≤ ~25 tokens/scan) for theses + profile synthesis.
+- Data providers sit behind the `DataProvider` interface with a monthly quota ledger. Cache is permanent (on-chain history is immutable).
+- Reasoning runs on the owner's Claude Max 5x subscription: assert subscription auth on startup; never let a stray `ANTHROPIC_API_KEY` bill silently. Auth mode stays a config flag (`subscription` | `api_key`).
+- Server binds localhost only. No private keys exist anywhere in this system.
+
+## Git policy — commit and push automatically
+
+- **Every completed change is committed AND pushed without asking for permission.** Do not ask "should I commit?" — commit, push, report.
+- Commit at logical units of work (a feature, a fix, a doc sync), not one giant end-of-session commit.
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`. Imperative, specific subject lines.
+- Never commit: `.env`, `/data/` (SQLite, images), provider keys, anything secret. Keep `.gitignore` current.
+- If a push fails (no remote / auth), say so once and continue working — don't block on it.
+
+## Documentation freshness — no stale docs
+
+- Any change that outdates existing information **must update that information in the same commit**: `PLAN.md`, this file, `README.md`, `CHANGELOG.md`, `/config/*` comments, prompt files.
+- This applies especially to: provider endpoints/limits (PLAN.md §16 verify-at-build items), classification bands, pipeline stages, schemas, commands, and anything in "Project snapshot" above.
+- When you verify a VERIFY-AT-BUILD item, check it off in PLAN.md §16 and record the confirmed detail where it belongs.
+- If reality and PLAN.md diverge during implementation, update PLAN.md to match reality (with a short note why) — the spec must never describe a system that doesn't exist.
+
+## Versioning
+
+- Semver, tracked in `package.json` + `CHANGELOG.md` (Keep a Changelog format).
+- Bump **patch** for fixes/internal changes, **minor** for new user-facing capability (new pipeline stage, new UI view, new provider), **major** for breaking changes to schemas, profile format, or config.
+- Every version bump: update `CHANGELOG.md` in the same commit and tag `vX.Y.Z` (`git tag` + push tags).
+- Milestones from PLAN.md §13 map to minors: M1 → 0.1.0, M2 → 0.2.0, M3 → 0.3.0, M4 → 0.4.0, M5 → 0.5.0. 1.0.0 = daily-driver stable.
+- `prompt_version` (reasoning prompts) and `bands_version` (classification config) are versioned separately inside their files; bump them whenever those files change, since profiles record them.
+
+## Plugins & MCP servers — use these
+
+| Tool | Type | Use for |
+|---|---|---|
+| **context7** | MCP | Pull current docs before writing code against any library (Fastify, Drizzle, Vite, Claude Agent SDK, Tailwind). Prefer this over memory — API surfaces drift. |
+| **ScraplingServer** | MCP | Scraping/inspecting the unofficial pump.fun frontend API and provider docs during VERIFY-AT-BUILD; building the provider-1 client against real responses. |
+| **codebase-memory-mcp** | MCP | Record architecture decisions, verified provider endpoint shapes, and gotchas as they're discovered; query it before re-deriving past decisions. |
+| **github** | Plugin | Repo operations beyond plain git (issues, releases for version tags, PRs if ever needed). |
+| **frontend-design** | Plugin | M4 UI work — the dark-mode interface (PLAN.md §10). Load before building views. |
+| **ui-ux-pro-max** | Plugin | M4 alongside frontend-design for layout/UX decisions on Scan/Library/Profile views. |
+| **claude-md-management** | Plugin | Maintaining/refactoring this CLAUDE.md when it grows stale (which the docs-freshness rule will trigger). |
+| **skill-creator** | Plugin | If a repeated workflow emerges (e.g., "run scan + grade theses"), package it as a skill. |
+| **caveman** | Plugin (user) | General user plugin — invoke its skills when their descriptions match the task at hand. |
+| **cowork-plugin-management** | Plugin | Only if customizing/creating plugins for this project's workflows. |
+
+Built-in `cc-plugin-*` plugins need no special handling.
+
+## Working conventions
+
+- Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint.
+- Validate every external response (providers, agent outputs) against schemas; fail loud, never silently degrade data.
+- Reasoning prompts live in `/src/reasoning/prompts/` as versioned files — treat prompt edits like code changes (commit, version, changelog if behavior shifts).
+- Test data-layer work against real deployer wallets early; quota estimates before scans, always.
+- Keep it simple: this runs at 1–2 scans/day for one user. No premature scaling, no unnecessary abstraction beyond the `DataProvider` interface.

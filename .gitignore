@@ -1,0 +1,12 @@
+node_modules/
+dist/
+web/dist/
+web/node_modules/
+.env
+.env.*
+!.env.example
+/data/
+/profiles/*.md
+!/profiles/.gitkeep
+*.log
+.DS_Store

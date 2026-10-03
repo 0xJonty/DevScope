@@ -1,0 +1,7 @@
+{
+  "comment": "Layer B model routing (PLAN.md §8). Model aliases are passed straight to the Claude Agent SDK. Synthesis may use a stronger model than theses.",
+  "thesis_model": "sonnet",
+  "synthesis_model": "opus",
+  "max_turns_thesis": 12,
+  "max_turns_synthesis": 8
+}

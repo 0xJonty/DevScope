@@ -1,0 +1,14 @@
+{
+  "comment": "Deployer Scan defaults (PLAN.md §7). Per-scan overrides allowed from UI/CLI.",
+  "window_n": 300,
+  "window_max": 500,
+  "dossier": {
+    "top": 10,
+    "mids": 3,
+    "failures_min": 5,
+    "failures_max": 8,
+    "cap": 20,
+    "cap_absolute": 25
+  },
+  "min_history_warn": 10
+}
