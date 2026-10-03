@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-03 (M2: dossier selection + enrichment)
+
+### Added
+- S3 dossier selection: top-N by ATH (bonded first), "almost made it" mids, failures clustered by name-theme + week and sampled by instructiveness (reply count, lifespan, ATH), user-pinned mints fetched ad hoc; soft cap 20 / hard cap 25.
+- S4 dossier enrichment: token image download (vision input), price-curve summary (time-to-ATH, lifespan, and for graduated tokens GeckoTerminal candle stats: days traded, volume, 7d retrace).
+
+### Fixed
+- Bonded-token ATH now takes `max(provider ATH, pump.fun curve-phase ATH)` — verified live that GeckoTerminal candles only cover the post-graduation pool ($569 vs the real $45k curve peak on the test wallet's graduate).
+- Image downloads fail over pump.fun CDN → original URI → Pinata gateway (ipfs.io 429s hard).
+
+### Verified on real data
+- 60-deploy window of a live wallet: 10-token dossier, 10/10 images downloaded, real candle stats; only 2 GeckoTerminal calls and 0 Solana Tracker calls consumed.
+
 ## [0.1.0] — 2026-10-03 (M1: data layer)
 
 ### Added

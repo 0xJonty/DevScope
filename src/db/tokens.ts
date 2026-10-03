@@ -4,11 +4,17 @@ import type { EnumeratedToken } from "../providers/types.js";
 
 export type TokenRow = typeof schema.tokens.$inferSelect;
 
-/** Permanent cache (PLAN.md §5.4): upsert refreshes mutable fields only; a
- * Solana-Tracker ATH already on the row is never downgraded to pumpfun's. */
+/** An ATH that came from (or was max-merged with) a quota'd/candle provider —
+ * never downgraded back to pump.fun's raw value. */
+export function isAuthoritativeAthSource(source: string | null | undefined): boolean {
+  return source != null && source !== "pumpfun";
+}
+
+/** Permanent cache (PLAN.md §5.4): upsert refreshes mutable fields only; an
+ * authoritative ATH already on the row is never downgraded to pumpfun's. */
 export function upsertEnumeratedToken(t: EnumeratedToken): void {
   const existing = db.select().from(schema.tokens).where(eq(schema.tokens.mint, t.mint)).get();
-  const keepAth = existing?.athSource === "solanatracker" || existing?.athSource === "geckoterminal";
+  const keepAth = isAuthoritativeAthSource(existing?.athSource);
   db.insert(schema.tokens)
     .values({
       mint: t.mint,

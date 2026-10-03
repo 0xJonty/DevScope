@@ -1,6 +1,6 @@
 import { bands } from "../config.js";
 import { MissingCredentialError } from "../config.js";
-import { getWindowTokens, setTokenAth, type TokenRow } from "../db/tokens.js";
+import { getWindowTokens, isAuthoritativeAthSource, setTokenAth, type TokenRow } from "../db/tokens.js";
 import { fetchAthWithFailover } from "../providers/index.js";
 import { assertHeadroom } from "../providers/quota.js";
 import { getScan, getStageState, patchStageState, recordQuotaSpent } from "./checkpoint.js";
@@ -55,7 +55,7 @@ export async function runS2(ctx: ScanCtx): Promise<void> {
   const rows = getWindowTokens(ctx.wallet, scan.windowFrom, scan.windowTo);
   const needsFetch = rows.filter((r) => {
     const cachedAuthoritative =
-      (r.athSource === "solanatracker" || r.athSource === "geckoterminal") &&
+      isAuthoritativeAthSource(r.athSource) &&
       !(r.lastTradeAt != null && r.lastTradeAt > r.fetchedAt - 60_000 && r.bonded);
     if (cachedAuthoritative) return false;
     if (r.bonded) return true; // bonded → authoritative ATH required
@@ -81,7 +81,16 @@ export async function runS2(ctx: ScanCtx): Promise<void> {
     if (ctx.pauseRequested()) throw new ScanPausedError("pause requested");
     try {
       const ath = await fetchAthWithFailover(row.mint, row.poolAddress);
-      setTokenAth(row.mint, ath.athUsd, ath.athAt, ath.source);
+      // GeckoTerminal candles cover only the graduated AMM pool and miss the
+      // bonding-curve phase (observed live: $569 vs pump.fun's $45k for the
+      // same token), so the final ATH is the max of the provider value and
+      // pump.fun's curve-phase ath_market_cap.
+      const pumpfunAth = row.athSource === "pumpfun" ? row.athUsd : null;
+      if (pumpfunAth != null && pumpfunAth > ath.athUsd) {
+        setTokenAth(row.mint, pumpfunAth, row.athAt, `pumpfun+${ath.source}-max`);
+      } else {
+        setTokenAth(row.mint, ath.athUsd, ath.athAt, ath.source);
+      }
       recordQuotaSpent(ctx.scanId, ath.source, 1);
     } catch (err) {
       if (err instanceof MissingCredentialError) {

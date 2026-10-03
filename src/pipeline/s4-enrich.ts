@@ -9,16 +9,36 @@ import { geckoterminal } from "../providers/index.js";
 import { getStageState, patchStageState, recordQuotaSpent } from "./checkpoint.js";
 import { ScanPausedError, type DossierEntry, type ScanCtx } from "./types.js";
 
+/** ipfs.io rate-limits hard (observed 429s) — try pump.fun's own image CDN
+ * first, then the original URI, then a Pinata gateway rewrite. */
+function imageCandidates(mint: string, uri: string): string[] {
+  const candidates = [`https://images.pump.fun/coin-image/${mint}?variant=256x256`, uri];
+  const ipfsMatch = uri.match(/\/ipfs\/([A-Za-z0-9]+.*)$/);
+  if (ipfsMatch) candidates.push(`https://gateway.pinata.cloud/ipfs/${ipfsMatch[1]}`);
+  return candidates;
+}
+
 async function downloadImage(mint: string, uri: string): Promise<string | null> {
   const dir = join(config.dataDir, "images");
   await mkdir(dir, { recursive: true });
-  const res = await fetch(uri, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok || !res.body) return null;
-  const type = res.headers.get("content-type") ?? "";
-  const ext = type.includes("png") ? ".png" : type.includes("gif") ? ".gif" : type.includes("webp") ? ".webp" : extname(new URL(uri).pathname) || ".jpg";
-  const path = join(dir, `${mint}${ext}`);
-  await streamPipeline(Readable.fromWeb(res.body as never), createWriteStream(path));
-  return path;
+  for (const candidate of imageCandidates(mint, uri)) {
+    try {
+      const res = await fetch(candidate, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { "user-agent": "Mozilla/5.0" },
+        redirect: "follow",
+      });
+      const type = res.headers.get("content-type") ?? "";
+      if (!res.ok || !res.body || !type.startsWith("image/")) continue;
+      const ext = type.includes("png") ? ".png" : type.includes("gif") ? ".gif" : type.includes("webp") ? ".webp" : extname(new URL(candidate).pathname) || ".jpg";
+      const path = join(dir, `${mint}${ext}`);
+      await streamPipeline(Readable.fromWeb(res.body as never), createWriteStream(path));
+      return path;
+    } catch {
+      continue; // try next gateway; the caller logs if all fail
+    }
+  }
+  return null;
 }
 
 /**
@@ -45,11 +65,11 @@ export async function runS4(ctx: ScanCtx): Promise<void> {
     });
 
     if (!row.imagePath && row.imageUri) {
-      try {
-        const path = await downloadImage(row.mint, row.imageUri);
-        if (path) setTokenImagePath(row.mint, path);
-      } catch (err) {
-        ctx.emit({ type: "log", stage: "s4", message: `image download failed for ${row.mint}: ${String(err)}` });
+      const path = await downloadImage(row.mint, row.imageUri);
+      if (path) {
+        setTokenImagePath(row.mint, path);
+      } else {
+        ctx.emit({ type: "log", stage: "s4", message: `image download failed on all gateways for ${row.mint}` });
       }
     }
 
