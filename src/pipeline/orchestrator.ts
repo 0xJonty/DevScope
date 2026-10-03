@@ -40,6 +40,14 @@ export function createScan(opts: NewScanOptions): string {
   const windowN = Math.min(opts.windowN ?? scanDefaults.window_n, scanDefaults.window_max);
   const id = randomUUID();
 
+  db.insert(schema.deployers)
+    .values({ wallet: opts.wallet, name: opts.alias ?? null, createdAt: Date.now() })
+    .onConflictDoUpdate({
+      target: schema.deployers.wallet,
+      set: opts.alias ? { name: opts.alias } : { wallet: opts.wallet },
+    })
+    .run();
+
   // Re-scan (PLAN.md §7): if a finished scan exists, the new one carries the
   // prior window bounds so S1 delta-enumerates and S2+ see the combined window.
   const prior = db

@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-03 (M3: reasoning layer — the product)
+
+### Added
+- Layer B integration via `@anthropic-ai/claude-agent-sdk`: `runAgentJson()` wraps `query()` with JSON-schema structured output, WebSearch/WebFetch/Read tools (Read gives vision on the downloaded token image), per-call subscription-auth guard, and rate-limit detection that pauses the scan for auto-resume.
+- S5 per-token theses: versioned prompt (`thesis-v1.0.0`), zod-validated output, one retry with the validation error appended, `generation_failed` fallback; evidence-empty theses are mechanically forced to `confidence: low`; re-scans copy prior theses verbatim.
+- S6 profile synthesis: versioned prompt (`synthesis-v1.0.0`), model-routed (`config/reasoning.json`: sonnet theses / opus synthesis), prior-profile context on re-scans.
+- S7 profile store: deterministic PROFILE.md assembly (Layer A renders frontmatter, fingerprint table, and thesis sections; Layer B contributes only verdict/works/fails/playbook/questions), profiles index upsert, scan log closure.
+
+### Fixed
+- `createScan` now persists the alias to the deployers table (it was silently dropped).
+
+### Verified live
+- End-to-end scan on a real wallet through the owner's subscription: 2 theses (web search + image vision ran), 1 synthesis, coherent PROFILE.md written — zero API-key usage.
+
 ## [0.2.0] — 2026-10-03 (M2: dossier selection + enrichment)
 
 ### Added
