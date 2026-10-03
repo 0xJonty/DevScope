@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-03 (M5: re-scan, polish, acceptance)
+
+### Added
+- Delta re-scan wired end to end: a new scan on a profiled wallet enumerates only deploys newer than the prior window, merges window bounds, reuses prior theses verbatim, and feeds the prior profile into synthesis (verified live: "No new deploys since the last scan").
+- `scripts/smoke-test.ts` (`npm run smoke`): post-credentials acceptance — validates .env naming each missing variable, one minimal live call per provider (confirms the Solana Tracker `x-api-key` header and Bitquery Bearer auth), and a minimal Agent SDK structured query on subscription auth. Pass/fail per item, non-zero exit on failure.
+- README: WSL setup (nvm, claude CLI login), key sources, run/dev/smoke commands, first-scan walkthrough.
+
+### Notes
+- Pause/resume polish (auto-resume after usage-window limits, interrupted-scan recovery on boot) and the Settings view shipped in 0.3.0/0.4.0; M5 verified them against the delta path.
+
 ## [0.4.0] — 2026-10-03 (M4: web UI)
 
 ### Added
