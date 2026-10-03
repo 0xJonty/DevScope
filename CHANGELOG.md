@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-03 (M4: web UI)
+
+### Added
+- React/Vite/Tailwind v4 dark UI served statically by Fastify on localhost (PLAN.md §10): near-black `#0c0e12`, single muted steel-blue accent, Inter/system type.
+- **Scan view**: wallet input, optional name, window + pinned-mint dials, live pre-flight quota estimate, per-provider quota meters, SSE stage rail (S1–S7) with live log, pause/resume, loud paused/failed reasons.
+- **Library view**: profile cards (name/short wallet, verdict snippet, bond rate, best ATH, scan date), search, sort, inline rename.
+- **Profile view**: rendered markdown with the Verdict pinned in an accent panel, pump.fun/solscan links, "Update scan".
+- **Settings view**: quota meters, bands editor (bumps `bands_version` on save), auth-mode display, prompt versions, scan defaults.
+- SSE route with event replay buffer and heartbeats; SPA fallback; `/images/` static route for cached token images.
+
 ## [0.3.0] — 2026-10-03 (M3: reasoning layer — the product)
 
 ### Added

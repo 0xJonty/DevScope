@@ -16,12 +16,24 @@ export async function runS1(ctx: ScanCtx): Promise<void> {
   const state = getStageState(ctx.scanId, "s1");
 
   if (!state.enumerated) {
-    ctx.emit({ type: "progress", stage: "s1", message: `Enumerating up to ${ctx.windowN} deploys from pump.fun…` });
-    const tokens = await pumpfun.enumerateCreatedTokens!(ctx.wallet, ctx.windowN);
+    // Re-scan delta (PLAN.md §7): only fetch deploys newer than the prior
+    // scan's window.to; the scan row already carries the prior window bounds.
+    const scan = getScan(ctx.scanId);
+    const sinceMs = (getStageState(ctx.scanId, "delta_since" as never).sinceMs as number | undefined) ?? undefined;
+    ctx.emit({
+      type: "progress",
+      stage: "s1",
+      message: sinceMs
+        ? `Delta-enumerating deploys since ${new Date(sinceMs).toISOString()}…`
+        : `Enumerating up to ${ctx.windowN} deploys from pump.fun…`,
+    });
+    const tokens = await pumpfun.enumerateCreatedTokens!(ctx.wallet, ctx.windowN, sinceMs);
     for (const t of tokens) upsertEnumeratedToken(t);
 
-    const from = tokens.length ? Math.min(...tokens.map((t) => t.createdAt)) : null;
-    const to = tokens.length ? Math.max(...tokens.map((t) => t.createdAt)) : null;
+    const newFrom = tokens.length ? Math.min(...tokens.map((t) => t.createdAt)) : null;
+    const newTo = tokens.length ? Math.max(...tokens.map((t) => t.createdAt)) : null;
+    const from = scan.windowFrom != null ? (newFrom != null ? Math.min(scan.windowFrom, newFrom) : scan.windowFrom) : newFrom;
+    const to = scan.windowTo != null ? (newTo != null ? Math.max(scan.windowTo, newTo) : scan.windowTo) : newTo;
     db.update(schema.scans)
       .set({ windowFrom: from, windowTo: to })
       .where(eq(schema.scans.id, ctx.scanId))
@@ -41,8 +53,10 @@ export async function runS1(ctx: ScanCtx): Promise<void> {
       stage: "s1",
       message:
         tokens.length === 0
-          ? "No pump.fun creates found for this wallet — not a pump.fun deployer."
-          : `Enumerated ${tokens.length} deploys (window ${from ? new Date(from).toISOString().slice(0, 10) : "?"} → ${to ? new Date(to).toISOString().slice(0, 10) : "?"}).`,
+          ? sinceMs
+            ? "No new deploys since the last scan."
+            : "No pump.fun creates found for this wallet — not a pump.fun deployer."
+          : `Enumerated ${tokens.length} ${sinceMs ? "new " : ""}deploys (window ${from ? new Date(from).toISOString().slice(0, 10) : "?"} → ${to ? new Date(to).toISOString().slice(0, 10) : "?"}).`,
     });
   }
 
