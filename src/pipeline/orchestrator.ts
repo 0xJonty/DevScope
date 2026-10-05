@@ -148,10 +148,10 @@ export function estimateScanCost(wallet: string, windowN: number): Record<string
   return {
     pumpfun: { estimated: pumpfunPages, note: "keyless enumeration pages" },
     solanatracker: {
-      estimated: Math.max(0, bondedGuess - cachedAuthoritative),
-      note: "authoritative ATH for bonded tokens (non-bonded ATH is free via pump.fun)",
+      estimated: Math.max(0, bondedGuess - cachedAuthoritative) + 1,
+      note: "lifetime totals (1 call) + authoritative ATH for bonded tokens (non-bonded ATH is free via pump.fun)",
     },
-    bitquery: { estimated: 2, note: "lifetime deploy count + best-ever ATH aggregates" },
+    bitquery: { estimated: 1, note: "lifetime best-ever ATH (optional — needs archive dataset / paid plan)" },
     geckoterminal: { estimated: bondedGuess, note: "candles for bonded dossier tokens (keyless)" },
   };
 }

@@ -52,6 +52,7 @@ export async function runS7(ctx: ScanCtx): Promise<void> {
       },
       lifetime: {
         total_deploys: deployer?.lifetimeDeploys ?? null,
+        total_graduated: deployer?.lifetimeGraduated ?? null,
         best_ath_usd: deployer?.lifetimeBestAthUsd ?? null,
         best_mint: deployer?.lifetimeBestMint ?? null,
         best_at: null,

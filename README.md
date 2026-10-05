@@ -34,7 +34,7 @@ cp .env.example .env
 | Variable | Where | Free tier |
 |---|---|---|
 | `SOLANA_TRACKER_API_KEY` | <https://www.solanatracker.io/data-api> → sign up → API key | 2,500 req/month @ 3 req/s, no card |
-| `BITQUERY_API_KEY` | <https://account.bitquery.io> → API → Access Tokens | 10K points first month (dev tier) |
+| `BITQUERY_API_KEY` *(optional)* | <https://account.bitquery.io> → API → Access Tokens | free tier is realtime-only; only enriches lifetime best-ever ATH (needs archive dataset = paid plan) |
 | pump.fun frontend API | no key needed (unofficial) | — |
 | GeckoTerminal | no key needed | ~30 req/min |
 

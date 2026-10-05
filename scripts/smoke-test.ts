@@ -10,19 +10,19 @@
 import "dotenv/config";
 import { z } from "zod";
 
-type Result = { item: string; ok: boolean; detail: string };
+type Result = { item: string; ok: boolean; detail: string; optional?: boolean };
 const results: Result[] = [];
 
-function record(item: string, ok: boolean, detail: string): void {
-  results.push({ item, ok, detail });
-  console.log(`${ok ? "  ✓" : "  ✗"} ${item} — ${detail}`);
+function record(item: string, ok: boolean, detail: string, optional = false): void {
+  results.push({ item, ok, detail, optional });
+  console.log(`${ok ? "  ✓" : optional ? "  ○" : "  ✗"} ${item} — ${detail}`);
 }
 
-async function run(item: string, fn: () => Promise<string>): Promise<void> {
+async function run(item: string, fn: () => Promise<string>, optional = false): Promise<void> {
   try {
-    record(item, true, await fn());
+    record(item, true, await fn(), optional);
   } catch (err) {
-    record(item, false, err instanceof Error ? err.message.slice(0, 300) : String(err));
+    record(item, false, err instanceof Error ? err.message.slice(0, 300) : String(err), optional);
   }
 }
 
@@ -31,9 +31,18 @@ console.log("Deployer Intelligence Platform — smoke test\n");
 // ── 1. Environment ─────────────────────────────────────────────────────────
 console.log("Environment:");
 const authMode = process.env.AUTH_MODE ?? "subscription";
-for (const key of ["SOLANA_TRACKER_API_KEY", "BITQUERY_API_KEY"] as const) {
-  const set = !!process.env[key]?.trim();
-  record(`.env ${key}`, set, set ? "set" : `missing — see .env.example for where to get it`);
+{
+  const set = !!process.env.SOLANA_TRACKER_API_KEY?.trim();
+  record(".env SOLANA_TRACKER_API_KEY", set, set ? "set" : "missing — see .env.example for where to get it");
+}
+{
+  const set = !!process.env.BITQUERY_API_KEY?.trim();
+  record(
+    ".env BITQUERY_API_KEY (optional)",
+    set,
+    set ? "set" : "missing — optional: only enriches lifetime best-ever ATH (archive dataset, paid plan)",
+    true
+  );
 }
 if (authMode === "subscription") {
   const stray = !!process.env.ANTHROPIC_API_KEY;
@@ -87,26 +96,53 @@ await run("Solana Tracker /tokens/{mint}/ath (x-api-key)", async () => {
   return `OK — highest_market_cap=${body.highest_market_cap ?? "null"}; x-api-key header confirmed`;
 });
 
-await run("Bitquery EAP deploy-count aggregate (Bearer)", async () => {
-  const key = process.env.BITQUERY_API_KEY?.trim();
-  if (!key) throw new Error("BITQUERY_API_KEY not set");
+await run("Solana Tracker /deployer lifetime totals", async () => {
+  const key = process.env.SOLANA_TRACKER_API_KEY?.trim();
+  if (!key) throw new Error("SOLANA_TRACKER_API_KEY not set");
   const wallet = sampleCreator ?? "BaA7Z6bCjwic9dK2j7VfJKP5grDsTTrfF7VPm4Zn72hD";
+  const res = await fetch(`https://data.solanatracker.io/deployer/${wallet}?page=1&limit=1`, {
+    headers: { ...UA, "x-api-key": key },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 150)}`);
+  const body = z
+    .looseObject({ total: z.number(), graduated: z.union([z.number(), z.looseObject({ total: z.number() })]).nullish() })
+    .parse(await res.json());
+  const graduated = typeof body.graduated === "number" ? body.graduated : body.graduated?.total ?? "?";
+  return `OK — wallet ${wallet.slice(0, 8)}… has ${body.total} lifetime creates, ${graduated} graduated`;
+});
+
+// Optional: free dev tier is realtime-only; archive (lifetime best ATH) needs a paid plan.
+await run(
+  "Bitquery token (optional — realtime probe)",
+  async () => {
+  const key = process.env.BITQUERY_API_KEY?.trim();
+  if (!key) throw new Error("BITQUERY_API_KEY not set (optional — only enriches lifetime best-ever ATH)");
   const res = await fetch("https://streaming.bitquery.io/eap", {
     method: "POST",
     headers: { ...UA, "content-type": "application/json", authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(30_000),
     body: JSON.stringify({
-      query: `query ($wallet: String!) { Solana(dataset: archive) { Instructions(where: { Instruction: { Program: { Address: { is: "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P" }, Method: { in: ["create","create_v2"] } } }, Transaction: { Signer: { is: $wallet }, Result: { Success: true } } }) { tokens_count: count } } }`,
-      variables: { wallet },
+      query: `query { Solana { Instructions(limit: {count: 1}) { Transaction { Signer } } } }`,
     }),
   });
   if (res.status === 401 || res.status === 403) throw new Error(`auth rejected (HTTP ${res.status}) — check the access token`);
-  const body = (await res.json()) as { data?: { Solana?: { Instructions?: Array<{ tokens_count?: unknown }> } }; errors?: Array<{ message: string }> };
+  const body = (await res.json()) as { data?: unknown; errors?: Array<{ message: string }> };
   if (body.errors?.length) throw new Error(`GraphQL error: ${body.errors[0]!.message.slice(0, 150)}`);
-  const count = body.data?.Solana?.Instructions?.[0]?.tokens_count;
-  if (count === undefined) throw new Error(`unexpected shape: ${JSON.stringify(body).slice(0, 150)}`);
-  return `OK — wallet ${wallet.slice(0, 8)}… has ${count} lifetime pump.fun creates`;
-});
+  // Probe archive access so the report says whether lifetime best-ATH will fill.
+  const archive = await fetch("https://streaming.bitquery.io/eap", {
+    method: "POST",
+    headers: { ...UA, "content-type": "application/json", authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify({ query: `query { Solana(dataset: archive) { Instructions(limit: {count: 1}) { Transaction { Signer } } } }` }),
+  });
+  const archiveOk = archive.ok && !((await archive.json()) as { errors?: unknown[] }).errors?.length;
+  return archiveOk
+    ? "OK — token valid, archive dataset available: lifetime best-ever ATH will fill"
+    : "OK — token valid (realtime only; archive needs a paid plan, so lifetime best-ever ATH stays null)";
+  },
+  true
+);
 
 await run("GeckoTerminal OHLCV (keyless)", async () => {
   // SOL/USDC Raydium pool — a stable reference that always has candles.
@@ -148,8 +184,13 @@ await run("Claude Agent SDK minimal structured query", async () => {
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────
-const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} checks passed.`);
+const failed = results.filter((r) => !r.ok && !r.optional);
+const softFailed = results.filter((r) => !r.ok && r.optional);
+console.log(`\n${results.filter((r) => r.ok).length}/${results.length} checks passed.`);
+if (softFailed.length > 0) {
+  console.log("Optional items not available (scan still fully works):");
+  for (const f of softFailed) console.log(`  ○ ${f.item}`);
+}
 if (failed.length > 0) {
   console.log("Failed items:");
   for (const f of failed) console.log(`  ✗ ${f.item}`);

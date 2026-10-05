@@ -29,6 +29,8 @@ export interface AthResult {
 
 export interface LifetimeStats {
   totalDeploys: number;
+  /** Lifetime graduated-token count (Solana Tracker exposes it for free in the same call). */
+  graduatedCount: number | null;
   bestAthUsd: number | null;
   bestMint: string | null;
   bestAt: number | null;

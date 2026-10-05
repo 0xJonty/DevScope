@@ -8,7 +8,12 @@ export interface SynthesisInput {
   wallet: string;
   alias: string | null;
   window: { n: number; from: string | null; to: string | null };
-  lifetime: { total_deploys: number | null; best_ath_usd: number | null; best_mint: string | null };
+  lifetime: {
+    total_deploys: number | null;
+    total_graduated: number | null;
+    best_ath_usd: number | null;
+    best_mint: string | null;
+  };
   fingerprint: Record<string, unknown>;
   bands: { worked: string; mid_min_ath_usd: number };
   theses: Array<Record<string, unknown>>;

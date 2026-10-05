@@ -9,8 +9,13 @@ import { SchemaValidationError, type DataProvider, type LifetimeStats } from "./
  * VERIFIED from docs 2026-10-03: POST https://streaming.bitquery.io/eap,
  * Authorization: Bearer <token>. pump.fun program:
  * 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P, create methods create/create_v2.
- * TODO-VERIFY (needs live token): exact point cost of these two queries on the
- * free dev tier (10K points first month, 10 req/min).
+ *
+ * VERIFIED LIVE 2026-10-05: the free dev tier is RESTRICTED TO THE REALTIME
+ * DATASET — `dataset: archive` returns 403 "your plan only allows realtime",
+ * and realtime is too shallow for lifetime aggregates (saw 0 of a wallet's
+ * 230 deploys). Lifetime totals therefore come from Solana Tracker's
+ * /deployer endpoint; these archive queries remain for paid plans, and S1
+ * attempts them opportunistically to fill the lifetime best-ever ATH.
  */
 
 const PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
@@ -39,16 +44,41 @@ const athResponse = z.object({
   }),
 });
 
+export class BitqueryPlanRestrictedError extends Error {
+  constructor(detail: string) {
+    super(
+      `Bitquery plan restriction: ${detail}. The free dev tier only allows the realtime dataset; ` +
+        `lifetime best-ever ATH needs the archive dataset (paid plan). The scan continues without it.`
+    );
+    this.name = "BitqueryPlanRestrictedError";
+  }
+}
+
+const RESTRICTED_RE = /access restricted|only allows/i;
+
 async function gql(query: string, variables: Record<string, unknown>): Promise<unknown> {
   const base = providerConfig.providers.bitquery!.base_url;
-  return providerFetch("bitquery", base, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${requireEnv("BITQUERY_API_KEY")}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  let raw: unknown;
+  try {
+    raw = await providerFetch("bitquery", base, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${requireEnv("BITQUERY_API_KEY")}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (err) {
+    // Plan restrictions come back as HTTP 403 with a GraphQL errors body.
+    if (err instanceof Error && RESTRICTED_RE.test(err.message)) {
+      throw new BitqueryPlanRestrictedError(err.message.slice(0, 200));
+    }
+    throw err;
+  }
+  const errors = (raw as { errors?: Array<{ message?: string }> }).errors;
+  const restricted = errors?.find((e) => RESTRICTED_RE.test(e.message ?? ""));
+  if (restricted) throw new BitqueryPlanRestrictedError(restricted.message ?? "access restricted");
+  return raw;
 }
 
 const COUNT_QUERY = `
@@ -113,6 +143,7 @@ export const bitquery: DataProvider = {
     const price = row?.Trade.PriceInUSD != null ? Number(row.Trade.PriceInUSD) : null;
     return {
       totalDeploys,
+      graduatedCount: null,
       bestAthUsd: price != null ? price * 1_000_000_000 : null,
       bestMint: row?.Trade.Currency.MintAddress ?? null,
       bestAt: row?.Block?.Time ? Date.parse(row.Block.Time) : null,

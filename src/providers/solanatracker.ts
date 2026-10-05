@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { providerConfig, requireEnv } from "../config.js";
 import { providerFetch } from "./http.js";
-import { SchemaValidationError, type AthResult, type DataProvider, type EnumeratedToken } from "./types.js";
+import {
+  SchemaValidationError,
+  type AthResult,
+  type DataProvider,
+  type EnumeratedToken,
+  type LifetimeStats,
+} from "./types.js";
 
 /**
  * Provider 2 — Solana Tracker Data API. THE quota'd provider (free tier:
@@ -13,6 +19,13 @@ import { SchemaValidationError, type AthResult, type DataProvider, type Enumerat
  * TODO-VERIFY (needs live key): auth header name is assumed `x-api-key` per
  * docs convention; OpenAPI names the scheme "apiKey". Confirm with smoke test.
  */
+
+const deployerPageSchema = z.looseObject({
+  status: z.string(),
+  total: z.number(),
+  // Verified live 2026-10-05: an object { total, totalUniqueTokens, data[] }.
+  graduated: z.union([z.number(), z.looseObject({ total: z.number() })]).nullish(),
+});
 
 const athSchema = z.object({
   highest_price: z.number().nullish(),
@@ -47,6 +60,28 @@ function base(): string {
 
 export const solanatracker: DataProvider = {
   name: "solanatracker",
+
+  /**
+   * Lifetime context, one quota'd call (verified live 2026-10-05):
+   * GET /deployer/{wallet}?page=1&limit=1 → { total, graduated, ... }.
+   * Best-ever ATH is NOT available here; Bitquery's archive dataset has it but
+   * needs a paid plan (free tier is realtime-only) — S1 enriches when it can.
+   */
+  async getLifetimeStats(wallet): Promise<LifetimeStats> {
+    const raw = await providerFetch("solanatracker", `${base()}/deployer/${wallet}?page=1&limit=1`, {
+      headers: headers(),
+    });
+    const parsed = deployerPageSchema.safeParse(raw);
+    if (!parsed.success) throw new SchemaValidationError("solanatracker", parsed.error.message.slice(0, 500));
+    const graduated = parsed.data.graduated;
+    return {
+      totalDeploys: parsed.data.total,
+      graduatedCount: typeof graduated === "number" ? graduated : graduated?.total ?? null,
+      bestAthUsd: null,
+      bestMint: null,
+      bestAt: null,
+    };
+  },
 
   async getTokenAth(mint): Promise<AthResult> {
     const raw = await providerFetch("solanatracker", `${base()}/tokens/${mint}/ath`, { headers: headers() });

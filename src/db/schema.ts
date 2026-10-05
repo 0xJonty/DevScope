@@ -8,6 +8,7 @@ export const deployers = sqliteTable("deployers", {
   createdAt: integer("created_at").notNull(),
   lastScannedAt: integer("last_scanned_at"),
   lifetimeDeploys: integer("lifetime_deploys"),
+  lifetimeGraduated: integer("lifetime_graduated"),
   lifetimeBestAthUsd: real("lifetime_best_ath_usd"),
   lifetimeBestMint: text("lifetime_best_mint"),
   linkedWallets: text("linked_wallets", { mode: "json" }).$type<string[]>(),

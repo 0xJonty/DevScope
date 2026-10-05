@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-10-05 (post-credentials verification)
+
+### Fixed
+- Lifetime context rerouted: Bitquery's free dev tier is **realtime-only** (archive queries 403, verified live; realtime saw 0 of a 230-deploy wallet). Lifetime deploy + graduated totals now come from Solana Tracker `/deployer/{wallet}` (one quota'd call, `graduated` object shape handled); Bitquery archive is attempted opportunistically for the lifetime best-ever ATH and surfaces its plan restriction loudly without blocking the scan. `BITQUERY_API_KEY` is now optional.
+- New `lifetime_graduated` column on deployers (migration 0001); profile frontmatter and synthesis input carry `total_graduated`.
+- Smoke test: Bitquery checks downgraded to optional (reported, non-gating); added the `/deployer` lifetime-totals check; probes whether the token has archive access.
+
+### Verified live (keys in hand)
+- 9/9 smoke checks green. Solana Tracker auth header `x-api-key` CONFIRMED (PLAN.md §16 item closed). Full S1–S2 with real lifetime context: 230 deploys, 6 graduated.
+
 ## [0.5.0] — 2026-10-03 (M5: re-scan, polish, acceptance)
 
 ### Added

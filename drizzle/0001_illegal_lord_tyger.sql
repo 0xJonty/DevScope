@@ -1,0 +1,1 @@
+ALTER TABLE `deployers` ADD `lifetime_graduated` integer;
