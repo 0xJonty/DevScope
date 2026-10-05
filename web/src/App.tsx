@@ -22,9 +22,16 @@ export default function App() {
   return (
     <div className="min-h-screen flex">
       <aside className="w-44 shrink-0 border-r border-line px-5 py-7 flex flex-col gap-8">
-        <div>
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] shrink-0" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="7" />
+            <line x1="12" y1="1.5" x2="12" y2="5.5" />
+            <line x1="12" y1="18.5" x2="12" y2="22.5" />
+            <line x1="1.5" y1="12" x2="5.5" y2="12" />
+            <line x1="18.5" y1="12" x2="22.5" y2="12" />
+            <circle cx="12" cy="12" r="1.1" fill="var(--color-accent)" stroke="none" />
+          </svg>
           <div className="font-semibold tracking-tight">DevScope</div>
-          <div className="text-faint text-xs mt-0.5">pump.fun scanner</div>
         </div>
         <nav className="flex flex-col gap-1">
           {NAV.map((item) => {

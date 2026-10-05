@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-10-05
+
+### Changed
+- Crosshair/scope mark added: SVG favicon + sidebar icon beside the DevScope name (accent color); "pump.fun scanner" subtitle removed.
+
 ## [0.7.2] — 2026-10-05 (rename)
 
 ### Changed
