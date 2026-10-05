@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-05 (reasoning prompt rework)
+
+### Added
+- **Deployer patterns** profile section (`deployer_patterns_md`, rendered as `# Deployer patterns`, shown as its own panel in the Profile view): cross-cutting deploy habits (relaunch cadence, paid dex, bundling, image sourcing, handle reuse) stated once instead of repeated through works/fails.
+- S6 enriches each thesis passed to synthesis with token `name`/`ticker`/`ath_usd`/`socials` so synthesis can cite tokens properly and detect a recurring dev X handle.
+
+### Changed
+- `synthesis-v1.2.0`: verdict reframed as a deployer *description* — deploy-style trends statistics can't show (e.g. consistent minimum ATH ⇒ bundling/snipers), recurring dev X-handle callout, no fingerprint stat recaps (UI shows them beside the text), explicit study-not-trade framing (no "fade"-style phrasing), no-fluff style rule; works/fails sections restricted to token-level detail with no generalized deployer stats and no repetition across sections.
+- `thesis-v1.2.0`: reframed as a deploy post-mortem — answers "why did people buy this / why did nobody" rather than buyer guidance; narrative verification through the dossier's attached links, narrative-age dating (fresh vs days-old catalyst and how the meta was performing), vamp PvP analysis (who vamped whom, what decided it — ticker/name/image/finer token details, what let it run before getting vamped), deploy-craft judgement, no-fluff style rule.
+- Profiles produced before 0.8.0 lack the new section; the UI simply hides the panel (no migration needed).
+
 ## [0.7.4] — 2026-10-05
 
 ### Changed

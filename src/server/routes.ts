@@ -201,6 +201,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       fingerprint: stageState.s2?.fingerprint ?? null,
       sections: {
         verdict: section("Verdict"),
+        patterns: section("Deployer patterns"),
         works: section("What works for them"),
         fails: section("What fails for them"),
         questions: section("Low-confidence notes / open questions"),

@@ -190,8 +190,9 @@ lifetime: { total_deploys, best_ath_usd, best_mint, best_at }
 tokens_analyzed: { worked, mid, failed, dossier_count }
 bands_version / prompt_version / data_providers
 ---
-# Verdict            ← 3–5 line tl;dr, pinned in UI
+# Verdict            ← 3–5 line deployer description (style/trends, no stat recaps), pinned in UI
 # Statistical fingerprint   ← table (cadence, hours UTC, bond rate, ATH dist, dev-buy)
+# Deployer patterns         ← cross-cutting habits stated once (added 0.8.0; dedupes works/fails)
 # What works for them       ← deploy/narrative types ranked, examples (removed "Playbook signals" 2026-10-05: trade-signal output is out of scope — the tool studies deploy styles as reference for the owner's own deploys)
 # What fails for them
 # Top deploys — theses      ← full thesis per token, evidence-linked
@@ -210,7 +211,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 
 1. **Scan** — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
 2. **Library** — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline.
-3. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
+3. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
 4. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
 
 ---

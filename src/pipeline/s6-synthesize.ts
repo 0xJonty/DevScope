@@ -15,6 +15,9 @@ export async function runS6(ctx: ScanCtx): Promise<void> {
   const fingerprint = getStageState(ctx.scanId, "s2").fingerprint as Fingerprint;
   const deployer = db.select().from(schema.deployers).where(eq(schema.deployers.wallet, ctx.wallet)).get();
   const thesisRows = db.select().from(schema.theses).where(eq(schema.theses.scanId, ctx.scanId)).all();
+  const tokenRows = new Map(
+    db.select().from(schema.tokens).where(eq(schema.tokens.wallet, ctx.wallet)).all().map((t) => [t.mint, t])
+  );
 
   // Re-scan context: prior profile markdown fed back in (PLAN.md §7 re-scan).
   const priorProfile = db.select().from(schema.profiles).where(eq(schema.profiles.wallet, ctx.wallet)).get();
@@ -39,7 +42,18 @@ export async function runS6(ctx: ScanCtx): Promise<void> {
     },
     fingerprint: fingerprint as unknown as Record<string, unknown>,
     bands: { worked: "bonded == true", mid_min_ath_usd: bands.mid_min_ath_usd },
-    theses: thesisRows.map((t) => t.json),
+    // Enriched so synthesis can cite names and spot a recurring dev X handle
+    // across tokens' socials (prompt v1.2.0).
+    theses: thesisRows.map((t) => {
+      const tok = tokenRows.get(t.mint);
+      return {
+        name: tok?.name ?? null,
+        ticker: tok?.ticker ?? null,
+        ath_usd: tok?.athUsd ?? null,
+        socials: tok?.socials ?? {},
+        ...(t.json as Record<string, unknown>),
+      };
+    }),
     prior_profile_md: priorMd,
   });
 

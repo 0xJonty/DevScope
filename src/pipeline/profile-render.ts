@@ -114,6 +114,7 @@ export function renderProfile(
     frontmatter,
     `# Verdict\n\n${synthesis.verdict}`,
     `# Statistical fingerprint\n\n${fingerprintTable(fp)}`,
+    `# Deployer patterns\n\n${synthesis.deployer_patterns_md}`,
     `# What works for them\n\n${synthesis.what_works_md}`,
     `# What fails for them\n\n${synthesis.what_fails_md}`,
     section("Top deploys — theses", by("worked").concat(by("pinned"))),

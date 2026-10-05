@@ -117,6 +117,7 @@ export interface StructuredProfile {
   fingerprint: Fingerprint | null;
   sections: {
     verdict: string | null;
+    patterns: string | null;
     works: string | null;
     fails: string | null;
     questions: string | null;

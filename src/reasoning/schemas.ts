@@ -60,6 +60,7 @@ export const thesisJsonSchema = {
 
 export const synthesisSchema = z.object({
   verdict: z.string().min(40),
+  deployer_patterns_md: z.string(),
   what_works_md: z.string(),
   what_fails_md: z.string(),
   open_questions_md: z.string(),
@@ -70,10 +71,11 @@ export type Synthesis = z.infer<typeof synthesisSchema>;
 export const synthesisJsonSchema = {
   type: "object",
   properties: {
-    verdict: { type: "string", description: "3-5 line tl;dr of this deployer" },
+    verdict: { type: "string", description: "Deployer description: 3-5 lines of style/trends, no stat recaps" },
+    deployer_patterns_md: { type: "string", description: "Markdown: cross-cutting deploy habits, each stated exactly once" },
     what_works_md: { type: "string", description: "Markdown: deploy/narrative types ranked by hit rate with examples" },
     what_fails_md: { type: "string", description: "Markdown: what reliably fails for them" },
     open_questions_md: { type: "string", description: "Markdown: low-confidence notes / open questions / anomalies" },
   },
-  required: ["verdict", "what_works_md", "what_fails_md", "open_questions_md"],
+  required: ["verdict", "deployer_patterns_md", "what_works_md", "what_fails_md", "open_questions_md"],
 } as const;

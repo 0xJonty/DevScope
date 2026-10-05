@@ -221,6 +221,15 @@ export default function ProfileView({ wallet, back, rescan }: { wallet: string; 
         </div>
       </section>
 
+      {profile.sections.patterns && (
+        <section className="border border-line rounded-lg px-5 py-4 space-y-2">
+          <h2 className="text-sm font-medium text-accent">Deployer patterns</h2>
+          <div className="min-[1280px]:columns-2 gap-10">
+            <Prose md={profile.sections.patterns} />
+          </div>
+        </section>
+      )}
+
       {(profile.sections.works || profile.sections.fails) && (
         <section className="grid grid-cols-2 gap-4">
           <div className="border border-line rounded-lg px-5 py-4 space-y-2">
