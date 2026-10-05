@@ -10,3 +10,4 @@ web/node_modules/
 !/profiles/.gitkeep
 *.log
 .DS_Store
+.claude.local.md

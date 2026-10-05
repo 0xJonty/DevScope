@@ -17,6 +17,7 @@ Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 feature: Deploye
 - Commit at logical units of work (a feature, a fix, a doc sync), not one giant end-of-session commit.
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`. Imperative, specific subject lines.
 - Never commit: `.env`, `/data/` (SQLite, images), provider keys, anything secret. Keep `.gitignore` current.
+- **Repo is PUBLIC.** Never commit scanned-wallet aliases or addresses, personal emails/paths, or anything identifying scan targets — CHANGELOG/PLAN references stay anonymized ("test wallet"). Audit with `git grep <value> $(git rev-list --all)` before pushing anything doubtful.
 - If a push fails (no remote / auth), say so once and continue working — don't block on it.
 
 ## Documentation freshness — no stale docs
@@ -53,6 +54,9 @@ Built-in `cc-plugin-*` plugins need no special handling.
 
 ## Working conventions
 
+- Layer B (Agent SDK) calls MUST set `settingSources: []` — SDK sessions otherwise inherit user-level hooks/settings (a global PreToolUse hook blocked agents' Read calls). Never have agents Read local files; attach them as inline base64 content blocks (see `src/reasoning/agent.ts`).
+- Cheap pipeline testing: `npm run cli -- scan <wallet> --through s2|s4` runs stages without Layer B cost; one-off tsx scripts must live inside the repo (module resolution fails from /tmp).
+- Stop the dev server with `kill $(lsof -ti:5717)` — `pkill -f` matches the shell wrapper and kills itself (exit 144).
 - Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint.
 - Validate every external response (providers, agent outputs) against schemas; fail loud, never silently degrade data.
 - Reasoning prompts live in `/src/reasoning/prompts/` as versioned files — treat prompt edits like code changes (commit, version, changelog if behavior shifts).
