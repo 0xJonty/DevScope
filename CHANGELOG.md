@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-10-05 (rename)
+
+### Changed
+- Project renamed **DevScope** (was Deployer Intelligence Platform / DIP): package names, UI branding, CLI/server/smoke-test banners, provider user-agents, docs (PLAN.md, CLAUDE.md, README). GitHub repo renamed to `0xJonty/DevScope` (old `DIP` URLs redirect); remote updated. Historical changelog entries keep the old name.
+
 ## [0.7.1] — 2026-10-05 (fix: thesis image vision)
 
 ### Fixed

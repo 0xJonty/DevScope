@@ -8,7 +8,7 @@ import { getScan, getStageState } from "./pipeline/checkpoint.js";
 import { scanEvents } from "./pipeline/events.js";
 import { STAGES, type Fingerprint, type StageId } from "./pipeline/types.js";
 
-const USAGE = `Deployer Intelligence Platform CLI
+const USAGE = `DevScope CLI
 
 Usage:
   npm run cli -- scan <wallet> [--name <alias>] [--window <n>] [--pin <mint,mint>] [--through <s1..s7>]

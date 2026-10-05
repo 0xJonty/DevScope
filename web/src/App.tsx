@@ -23,7 +23,7 @@ export default function App() {
     <div className="min-h-screen flex">
       <aside className="w-44 shrink-0 border-r border-line px-5 py-7 flex flex-col gap-8">
         <div>
-          <div className="font-semibold tracking-tight">Deployer Intel</div>
+          <div className="font-semibold tracking-tight">DevScope</div>
           <div className="text-faint text-xs mt-0.5">pump.fun scanner</div>
         </div>
         <nav className="flex flex-col gap-1">

@@ -1,4 +1,4 @@
-# DEPLOYER INTELLIGENCE PLATFORM — v1 SPEC (Deployer Scan)
+# DEVSCOPE — v1 SPEC (Deployer Scan)
 
 Status: LOCKED for v1 development · Date: 2026-10-03
 Owner: solo operator, personal local tool
@@ -55,7 +55,7 @@ Backend (Node/Fastify) ── Scan orchestrator (p-queue, checkpointed stages)
 | Language | TypeScript everywhere |
 | Runtime | Node.js LTS via nvm (inside WSL) |
 | Backend | Fastify + SSE for scan progress |
-| ORM/DB | Drizzle + SQLite (single file, `~/deployer-intel/data/app.db`) |
+| ORM/DB | Drizzle + SQLite (single file, `<repo>/data/app.db`) |
 | Reasoning | `@anthropic-ai/claude-agent-sdk`, auth via existing `claude` CLI login |
 | Frontend | React + Vite + Tailwind, served statically by Fastify |
 | Queue | `p-queue` in-process; scan state persisted per stage |
@@ -228,7 +228,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 ## 12. Security / hygiene
 
 - No private keys anywhere in this system, ever. It reads public chain data only.
-- Provider API keys in `.env` (gitignored). SQLite + profiles are local files; back up `~/deployer-intel` if valued.
+- Provider API keys in `.env` (gitignored). SQLite + profiles are local files; back up the repo’s `/data` + `/profiles` if valued.
 - Server binds to localhost only.
 
 ---

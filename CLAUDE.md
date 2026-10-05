@@ -1,4 +1,4 @@
-# CLAUDE.md — Deployer Intelligence Platform
+# CLAUDE.md — DevScope
 
 Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 feature: Deployer Scan.
 **`PLAN.md` is the authoritative spec — read it before architectural work. This file governs how you work in this repo.**

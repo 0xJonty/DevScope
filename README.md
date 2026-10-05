@@ -1,4 +1,4 @@
-# Deployer Intelligence Platform
+# DevScope
 
 Local tool giving a pump.fun deployer an edge: paste a rival deployer's wallet, get a persistent AI-reasoned `*-PROFILE.md` of their style, strengths, failure modes, and actionable signals. Spec in [PLAN.md](PLAN.md) — v1 ships one feature, **Deployer Scan**.
 
@@ -19,8 +19,8 @@ npm install -g @anthropic-ai/claude-code
 claude   # complete the login with your Claude Max account, then exit
 
 # 3. Project
-git clone https://github.com/0xJonty/DIP.git ~/build/DIP
-cd ~/build/DIP
+git clone https://github.com/0xJonty/DevScope.git ~/build/DevScope
+cd ~/build/DevScope
 npm install
 npm --prefix web install
 

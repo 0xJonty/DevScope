@@ -38,4 +38,4 @@ await registerApiRoutes(app);
 
 // Localhost only (PLAN.md §12) — WSL2 forwards localhost to Windows Chrome.
 await app.listen({ port: config.port, host: "127.0.0.1" });
-console.log(`Deployer Intelligence Platform → http://localhost:${config.port}`);
+console.log(`DevScope → http://localhost:${config.port}`);

@@ -34,7 +34,7 @@ export async function providerFetch(provider: ProviderName, url: string, opts: H
       const res = await fetch(url, {
         method: opts.method ?? "GET",
         headers: {
-          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) deployer-intel/0.1",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) devscope/0.1",
           accept: "application/json",
           ...opts.headers,
         },

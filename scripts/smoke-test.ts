@@ -26,7 +26,7 @@ async function run(item: string, fn: () => Promise<string>, optional = false): P
   }
 }
 
-console.log("Deployer Intelligence Platform — smoke test\n");
+console.log("DevScope — smoke test\n");
 
 // ── 1. Environment ─────────────────────────────────────────────────────────
 console.log("Environment:");
@@ -59,7 +59,7 @@ if (authMode === "subscription") {
 
 // ── 2. Providers (one minimal live call each) ──────────────────────────────
 console.log("\nProviders:");
-const UA = { "user-agent": "Mozilla/5.0 (smoke-test deployer-intel)" };
+const UA = { "user-agent": "Mozilla/5.0 (smoke-test devscope)" };
 let sampleMint: string | null = null;
 let sampleCreator: string | null = null;
 

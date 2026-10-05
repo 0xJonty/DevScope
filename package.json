@@ -1,8 +1,8 @@
 {
-  "name": "deployer-intelligence-platform",
-  "version": "0.7.1",
+  "name": "devscope",
+  "version": "0.7.2",
   "private": true,
-  "description": "Deployer Intelligence Platform — AI-reasoned intelligence on pump.fun deployers (v1: Deployer Scan)",
+  "description": "DevScope — AI-reasoned intelligence on pump.fun deployers (v1: Deployer Scan)",
   "type": "module",
   "engines": {
     "node": ">=20"
