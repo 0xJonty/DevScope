@@ -122,7 +122,7 @@ Bands are config, not code — pump.fun's fee/graduation mechanics change freque
 
 Each stage persists its output; a crashed/paused scan resumes at the last incomplete stage.
 
-**S1 — Enumerate.** Fetch the wallet's most recent N deploys (metadata + bonded flag) via provider 1. Then fetch **lifetime context**: total deploy count + graduated count via Solana Tracker `/deployer` (1 call); best-ever ATH via Bitquery archive when the plan allows it, else recorded as unknown (loudly, never silently). Store all.
+**S1 — Enumerate.** Fetch the wallet's most recent N deploys (metadata + bonded flag) via provider 1 — always the full window, including on re-scans (free calls; refreshes stale ATHs of tokens that pumped after the last scan). Then fetch **lifetime highlights**: the wallet's all-time top deploys via pump.fun's `sort=ath_market_cap` on the creator filter (1 free call, discovered 2026-10-05) — fills lifetime best ATH and feeds S3 auto-pins. Then **lifetime totals**: deploy + graduated counts via Solana Tracker `/deployer` (1 call); Bitquery archive cross-checks the best ATH when the plan allows it. Store all.
 
 **S2 — Exact scoring.** For every in-window, non-bonded token not already cached: fetch ATH (quota'd provider). Classify all window tokens into WORKED/MID/FAILED. Compute the statistical fingerprint in code: deploys/day, cadence, active hours (UTC → inferred timezone), bond rate, ATH distribution (median/p90/max), naming patterns (regex buckets: dictionary words vs 3–4 letter caps, emoji, "AI"/animal/person-name themes), token lifespan distribution, dev-buy sizes where available.
 
@@ -130,7 +130,8 @@ Each stage persists its output; a crashed/paused scan resumes at the last incomp
 - Top 10 by ATH (bonded first).
 - 2–3 MIDs — prefer "almost made it" (highest ATH below migration).
 - 5–8 FAILED — not the literal worst; cluster failures by name-theme + time, sample across clusters, weight toward instructive failures (had early volume, then died).
-- Any user-pinned mints (incl. out-of-window, e.g. the lifetime best — fetched ad hoc).
+- Top K lifetime deploys by all-time ATH, auto-pinned (default K=3, `lifetime_top_k`) — career-defining tokens reach the dossier even when thousands of newer deploys buried them. Bonded ones get a Solana Tracker ATH max-merge.
+- Any user-pinned mints (incl. out-of-window — fetched ad hoc).
 
 **S4 — Dossier enrichment.** For selected tokens only: full metadata, downloaded image, socials, precise launch timestamp, price-curve summary (time-to-ATH, retrace speed, volume profile), peak holders if available.
 
@@ -210,7 +211,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 
 1. **Scan** — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
 2. **Library** — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline.
-3. **Profile** — rendered markdown, verdict pinned, "Update scan" button, link out to pump.fun/solscan per token.
+3. **Profile** — structured renderer (updated 2026-10-05): stat-tile header (bond rate, deploys/day, lifetime totals, all-time best), pinned verdict, playbook panel, works/fails split, thesis cards with token image/chips/collapsible evidence, fingerprint grid, open questions. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
 4. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
 
 ---
@@ -275,4 +276,5 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - [x] Trade-count/volume proxies in enumeration: no trade counts, but `reply_count` + `last_trade_timestamp` (lifespan) are present and used for S3 instructive-failure weighting. Dev-buy sizes are NOT available from enumeration (noted in fingerprint).
 - [x] Claude Agent SDK: `query()` with `outputFormat: {type:"json_schema"}` → `structured_output`; `allowedTools: ["WebSearch","WebFetch","Read"]` (web search available; vision via Read on downloaded image). Subscription auth = existing `claude` CLI login with `ANTHROPIC_API_KEY` unset — startup guard enforces. TODO-VERIFY (needs login): smoke test makes one minimal live SDK call.
 - [x] Cashback-coin flag: **`is_cashback_enabled`** in every enumeration row; stored per token and surfaced in the fingerprint.
-- [ ] TODO-VERIFY: whether pump.fun `ath_market_cap` covers post-graduation DEX trading for bonded tokens (observed a bonded token at $45k ATH, below historical graduation caps — suspicious). Until confirmed, bonded tokens get authoritative ATH from Solana Tracker; non-bonded use the free pump.fun value.
+- [x] pump.fun `ath_market_cap` post-graduation coverage (verified 2026-10-05): it DOES track post-graduation trading — observed $130.5M on a graduated token, far above any graduation cap. It can lag low on recent graduates (one observed at $45k pump.fun vs $78k Solana Tracker), so bonded tokens keep the Solana Tracker max-merge.
+- [x] `sort=ath_market_cap&order=DESC` works with `creator=` on `/coins` (verified live 2026-10-05) — one free call returns a wallet's all-time top deploys by ATH. Used for lifetime best + S3 auto-pins. `sort=market_cap` and `sort=last_trade_timestamp` also work; `sort=usd_market_cap` is a 400.

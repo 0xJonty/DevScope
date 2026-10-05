@@ -14,9 +14,12 @@ import {
  *   - descending created_timestamp, page hard-capped at 70 rows
  *   - includes usd_market_cap, ath_market_cap (USD), ath_market_cap_timestamp,
  *     complete (= bonded), is_cashback_enabled, socials, image_uri
- * TODO-VERIFY: for bonded (complete=true) tokens, whether ath_market_cap covers
- * post-graduation DEX trading or only the bonding curve. Until verified, bonded
- * tokens get their ATH from Solana Tracker instead (see pipeline S2).
+ * VERIFIED 2026-10-05: ath_market_cap DOES cover post-graduation DEX trading
+ * (observed $130.5M on a graduated token — far above any graduation cap), but
+ * it can lag low vs Solana Tracker on recent graduates, so bonded tokens keep
+ * the max-merge with Solana Tracker's ATH (see pipeline S2).
+ * Also verified: `sort=ath_market_cap&order=DESC` works with the creator
+ * filter — one free call returns a wallet's all-time top deploys by ATH.
  */
 
 const coinSchema = z.object({
@@ -104,3 +107,27 @@ export const pumpfun: DataProvider = {
     return out;
   },
 };
+
+/**
+ * All-time top deploys by ATH for a wallet — one free call via
+ * `sort=ath_market_cap&order=DESC` (verified live 2026-10-05). This is how a
+ * 22k-deploy wallet's $130M graduate gets found without archive access.
+ */
+export async function getTopCreatedByAth(wallet: string, limit: number): Promise<EnumeratedToken[]> {
+  const base = providerConfig.providers.pumpfun!.base_url;
+  const url = `${base}/coins?offset=0&limit=${limit}&creator=${wallet}&sort=ath_market_cap&order=DESC&includeNsfw=true`;
+  const raw = await providerFetch("pumpfun", url);
+  const parsed = coinsPageSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new SchemaValidationError("pumpfun", parsed.error.message.slice(0, 500));
+  }
+  for (const c of parsed.data) {
+    if (c.creator !== wallet) {
+      throw new SchemaValidationError(
+        "pumpfun",
+        `creator filter returned foreign coin ${c.mint} on ATH sort — endpoint shape changed`
+      );
+    }
+  }
+  return parsed.data.map(toEnumerated);
+}

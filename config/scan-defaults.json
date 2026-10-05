@@ -8,7 +8,8 @@
     "failures_min": 5,
     "failures_max": 8,
     "cap": 20,
-    "cap_absolute": 25
+    "cap_absolute": 25,
+    "lifetime_top_k": 3
   },
   "min_history_warn": 10
 }

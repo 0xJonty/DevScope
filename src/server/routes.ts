@@ -121,6 +121,95 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     return { wallet, name: d?.name ?? null, markdown: readFileSync(p.filePath, "utf8"), filePath: p.filePath, updatedAt: p.updatedAt };
   });
 
+  // Structured profile: DB-backed data for purpose-built UI rendering; the
+  // markdown file stays the source of truth for prose sections.
+  app.get("/api/profiles/:wallet/structured", async (req, reply) => {
+    const wallet = (req.params as { wallet: string }).wallet;
+    const p = db.select().from(schema.profiles).where(eq(schema.profiles.wallet, wallet)).get();
+    if (!p || !existsSync(p.filePath)) return reply.code(404).send({ error: "no profile for this wallet yet" });
+    const d = db.select().from(schema.deployers).where(eq(schema.deployers.wallet, wallet)).get();
+    const doneScans = db
+      .select()
+      .from(schema.scans)
+      .where(eq(schema.scans.wallet, wallet))
+      .orderBy(desc(schema.scans.startedAt))
+      .all()
+      .filter((s) => s.status === "done");
+    // Prefer the newest scan that actually produced theses (a data-only
+    // --through run has a selection but no Layer B output).
+    const scan =
+      doneScans.find((s) => db.select().from(schema.theses).where(eq(schema.theses.scanId, s.id)).all().length > 0) ??
+      doneScans[0];
+
+    const md = readFileSync(p.filePath, "utf8");
+    const section = (title: string) => {
+      const esc = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // No multiline flag: `$` must mean end-of-file, not end-of-line, or the
+      // lazy capture stops at the first blank line.
+      const m = md.match(new RegExp(`(?:^|\\n)# ${esc}\\n([\\s\\S]*?)(?=\\n# |$)`));
+      return m ? m[1]!.trim() : null;
+    };
+
+    const stageState = (scan?.stageState ?? {}) as Record<string, Record<string, unknown>>;
+    const selection = (stageState.s3?.selection ?? []) as Array<{ mint: string; reason: string; classification: string }>;
+    const thesisRows = scan
+      ? db.select().from(schema.theses).where(eq(schema.theses.scanId, scan.id)).all()
+      : [];
+    const tokenRows = new Map(
+      db.select().from(schema.tokens).where(eq(schema.tokens.wallet, wallet)).all().map((t) => [t.mint, t])
+    );
+
+    const theses = selection
+      .map((entry) => {
+        const token = tokenRows.get(entry.mint);
+        const thesis = thesisRows.find((t) => t.mint === entry.mint);
+        if (!token) return null;
+        return {
+          mint: entry.mint,
+          name: token.name,
+          ticker: token.ticker,
+          bonded: token.bonded,
+          athUsd: token.athUsd,
+          createdAt: token.createdAt,
+          imageUrl: token.imagePath ? `/images/${token.imagePath.split("/").pop()}` : null,
+          classification: entry.classification,
+          reason: entry.reason,
+          thesis: thesis?.json ?? null,
+        };
+      })
+      .filter((x) => x !== null);
+
+    return {
+      wallet,
+      name: d?.name ?? null,
+      updatedAt: p.updatedAt,
+      scan: scan
+        ? {
+            windowN: scan.windowN,
+            from: scan.windowFrom,
+            to: scan.windowTo,
+            finishedAt: scan.finishedAt,
+            quotaSpent: scan.quotaSpent ?? {},
+          }
+        : null,
+      lifetime: {
+        deploys: d?.lifetimeDeploys ?? null,
+        graduated: d?.lifetimeGraduated ?? null,
+        bestAthUsd: d?.lifetimeBestAthUsd ?? null,
+        bestMint: d?.lifetimeBestMint ?? null,
+      },
+      fingerprint: stageState.s2?.fingerprint ?? null,
+      sections: {
+        verdict: section("Verdict"),
+        works: section("What works for them"),
+        fails: section("What fails for them"),
+        playbook: section("Playbook signals"),
+        questions: section("Low-confidence notes / open questions"),
+      },
+      theses,
+    };
+  });
+
   app.post("/api/profiles/:wallet/rename", async (req, reply) => {
     const wallet = (req.params as { wallet: string }).wallet;
     const body = z.object({ name: z.string().min(1).max(60) }).safeParse(req.body);

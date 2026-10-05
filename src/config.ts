@@ -30,6 +30,7 @@ const scanDefaultsSchema = z.object({
     failures_max: z.number(),
     cap: z.number(),
     cap_absolute: z.number(),
+    lifetime_top_k: z.number(),
   }),
   min_history_warn: z.number(),
 });

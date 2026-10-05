@@ -61,6 +61,70 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface Fingerprint {
+  windowDays: number;
+  deploysPerDay: number;
+  medianGapMinutes: number | null;
+  activeHoursUtc: number[];
+  peakHourUtc: number | null;
+  inferredTimezoneGuess: string | null;
+  bondRate: number;
+  counts: { worked: number; mid: number; failed: number; total: number };
+  athUsd: { median: number | null; p90: number | null; max: number | null };
+  namingPatterns: Record<string, number>;
+  lifespanHours: { median: number | null; p90: number | null };
+  cashbackShare: number | null;
+  devBuyNote: string;
+}
+
+export interface ThesisEvidence {
+  claim: string;
+  source_url: string;
+  found: boolean;
+}
+
+export interface ThesisJson {
+  narrative_category?: string;
+  timing?: string;
+  thesis?: string;
+  evidence?: ThesisEvidence[];
+  confidence?: string;
+  unknowns?: string;
+  image_notes?: string;
+  generation_failed?: boolean;
+  error?: string;
+}
+
+export interface StructuredThesis {
+  mint: string;
+  name: string;
+  ticker: string;
+  bonded: boolean;
+  athUsd: number | null;
+  createdAt: number;
+  imageUrl: string | null;
+  classification: string;
+  reason: string;
+  thesis: ThesisJson | null;
+}
+
+export interface StructuredProfile {
+  wallet: string;
+  name: string | null;
+  updatedAt: number;
+  scan: { windowN: number; from: number | null; to: number | null; finishedAt: number | null } | null;
+  lifetime: { deploys: number | null; graduated: number | null; bestAthUsd: number | null; bestMint: string | null };
+  fingerprint: Fingerprint | null;
+  sections: {
+    verdict: string | null;
+    works: string | null;
+    fails: string | null;
+    playbook: string | null;
+    questions: string | null;
+  };
+  theses: StructuredThesis[];
+}
+
 export const api = {
   createScan: (body: { wallet: string; alias?: string; windowN?: number; pinnedMints?: string[] }) =>
     fetch("/api/scans", {
@@ -79,6 +143,8 @@ export const api = {
   library: () => fetch("/api/library").then((r) => json<LibraryEntry[]>(r)),
   profile: (wallet: string) =>
     fetch(`/api/profiles/${wallet}`).then((r) => json<{ wallet: string; name: string | null; markdown: string; updatedAt: number }>(r)),
+  profileStructured: (wallet: string) =>
+    fetch(`/api/profiles/${wallet}/structured`).then((r) => json<StructuredProfile>(r)),
   rename: (wallet: string, name: string) =>
     fetch(`/api/profiles/${wallet}/rename`, {
       method: "POST",

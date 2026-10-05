@@ -110,6 +110,38 @@ export async function runS3(ctx: ScanCtx): Promise<void> {
   // Trim to soft cap, preserving tops > mids > failures order already enforced.
   while (selection.length > d.cap) selection.pop();
 
+  // Lifetime top deploys (S1 highlights): auto-pin the top K — a wallet's
+  // career-defining tokens must reach the dossier even when thousands of
+  // newer deploys buried them (added 2026-10-05).
+  const lifetimeTops = (getStageState(ctx.scanId, "s1").lifetimeTopMints ?? []) as string[];
+  let pinnedTops = 0;
+  for (const mint of lifetimeTops) {
+    if (pinnedTops >= d.lifetime_top_k || picked.has(mint)) continue;
+    const row = getTokensByMints([mint])[0];
+    if (!row || row.athUsd == null || row.athUsd <= 0) continue;
+    // Headliner accuracy: bonded tops without an authoritative ATH get the
+    // Solana Tracker value max-merged in (quota: ≤ lifetime_top_k calls).
+    if (row.bonded && row.athSource === "pumpfun") {
+      try {
+        const ath = await solanatracker.getTokenAth!(mint);
+        recordQuotaSpent(ctx.scanId, "solanatracker", 1);
+        const merged = Math.max(ath.athUsd, row.athUsd);
+        setTokenAth(mint, merged, merged === ath.athUsd ? ath.athAt : row.athAt, `pumpfun+${ath.source}-max`);
+      } catch (err) {
+        if (err instanceof MissingCredentialError) {
+          throw new ScanPausedError(`S3 lifetime-top ATH check needs ${err.variable} — ${err.message}`);
+        }
+        ctx.emit({
+          type: "log",
+          stage: "s3",
+          message: `lifetime-top ATH check failed for ${mint}: ${String(err)} — keeping pump.fun value`,
+        });
+      }
+    }
+    push(mint, "lifetime top deploy by ATH", "pinned");
+    pinnedTops++;
+  }
+
   // Pinned mints (incl. out-of-window, e.g. lifetime best) — fetched ad hoc.
   for (const mint of ctx.pinnedMints) {
     if (picked.has(mint)) continue;

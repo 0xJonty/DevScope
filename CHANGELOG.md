@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-05 (lifetime highlights + structured profile UI)
+
+### Added
+- **Lifetime highlights (S1)**: discovered that pump.fun's `/coins` supports `sort=ath_market_cap` with the creator filter — one free call returns a wallet's all-time top deploys. Fills `lifetime_best_ath_usd`/`best_mint` exactly (found a $130.5M graduate buried behind ~22.5k newer deploys on the first test) and feeds S3.
+- **S3 auto-pins** the top `lifetime_top_k` (default 3) career deploys into the dossier with a Solana Tracker ATH max-merge for bonded ones — out-of-window career-defining tokens now always get theses.
+- **Structured profile UI**: new `/api/profiles/:wallet/structured` endpoint (DB-backed theses/fingerprint + prose sections parsed from the markdown source of truth) and a rebuilt Profile view — stat-tile header, playbook panel, works/fails split, grouped thesis cards with images, chips, and collapsible evidence, fingerprint grid.
+
+### Fixed
+- Re-scans now always re-enumerate the full window (free keyless calls) instead of delta-only, refreshing stale ATHs for tokens that pumped after the previous scan (observed: $6.6k at scan time → token kept moving after). Thesis reuse remains per-mint in S5, so re-scan reasoning cost is unchanged.
+- PLAN.md §16: pump.fun `ath_market_cap` post-graduation coverage VERIFIED (a graduated token shows $130.5M); max-merge kept because it can lag low on fresh graduates.
+
+### Investigated, not a bug
+- A "Sí 419k" deploy shown by Axiom for the test wallet does not exist under that creator on pump.fun or Solana Tracker (both report the wallet's only Sí at $6.6k ATH; no sub-48h token in its all-time top 70). Attributed to an alternate wallet or aggregator-side merge — use pinned mints for such tokens until a `linked_wallets` feature lands.
+
 ## [0.5.1] — 2026-10-05 (post-credentials verification)
 
 ### Fixed
