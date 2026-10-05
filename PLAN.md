@@ -265,6 +265,7 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - Self post-mortems on your own wallet — identical pipeline pointed at yourself.
 - Wallet clustering (`linked_wallets`) once fee-sharing attribution matters.
 - j7 integration (pre-set image-gen prompts informed by profile insights) — profiles are machine-readable for this.
+- Multi-launchpad coverage (noted 2026-10-05: deployers also launch on Stonk etc., invisible to pump.fun-only enumeration) — Solana Tracker's `/deployer/{wallet}` already accepts a `launchpad` param, so this slots behind the existing `DataProvider` interface.
 
 ---
 

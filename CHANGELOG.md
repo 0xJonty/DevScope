@@ -17,7 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 - PLAN.md §16: pump.fun `ath_market_cap` post-graduation coverage VERIFIED (a graduated token shows $130.5M); max-merge kept because it can lag low on fresh graduates.
 
 ### Investigated, not a bug
-- A "Sí 419k" deploy shown by Axiom for the test wallet does not exist under that creator on pump.fun or Solana Tracker (both report the wallet's only Sí at $6.6k ATH; no sub-48h token in its all-time top 70). Attributed to an alternate wallet or aggregator-side merge — use pinned mints for such tokens until a `linked_wallets` feature lands.
+- A "Sí 419k" deploy shown by Axiom for the test wallet was launched on Stonk, a different launchpad — out of v1 scope (pump.fun only, PLAN.md §1). pump.fun's own Sí from this wallet peaked at $6.6k, which our data reports correctly. Other-launchpad deploys are a future `DataProvider` addition (Solana Tracker's `/deployer` already takes a `launchpad` param).
 
 ## [0.5.1] — 2026-10-05 (post-credentials verification)
 
