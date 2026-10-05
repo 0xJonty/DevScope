@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-10-05 (fix: thesis image vision)
+
+### Fixed
+- Thesis agents could not see token images: SDK sessions default to loading the user's filesystem settings, so a global PreToolUse hook (`cbm-code-discovery-gate`) blocked their Read calls — every thesis reported "image could not be viewed". Fix is two-fold: `settingSources: []` makes pipeline sessions hermetic (no user/project hooks, settings, or CLAUDE.md leak in), and the token image now rides along as an inline base64 content block instead of a Read instruction (`thesis-v1.1.0`). Read dropped from the agent tool list. Verified live: the model described a token image accurately with no tool calls.
+- Missing image files are now logged to the scan feed instead of silently running without vision.
+
 ## [0.7.0] — 2026-10-05 (profile layout rework; playbook removed)
 
 ### Changed — profile format (breaking for new profiles)

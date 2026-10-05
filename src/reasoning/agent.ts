@@ -1,6 +1,9 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { z } from "zod";
-import { assertAuthMode, config } from "../config.js";
+import { assertAuthMode } from "../config.js";
 
 export class RateLimitPause extends Error {
   constructor(detail: string) {
@@ -18,20 +21,54 @@ export class AgentOutputError extends Error {
 
 const RATE_LIMIT_RE = /rate.?limit|usage limit|limit reached|overloaded|429|quota/i;
 
+const IMAGE_MEDIA_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+};
+
 export interface AgentRunOptions {
   model: string;
   maxTurns: number;
   jsonSchema: Record<string, unknown>;
-  /** Directories the agent may Read from (token images). */
-  readDirs?: string[];
+  /** Token image attached directly as a base64 content block (vision). The
+   * agent must NOT need the Read tool for it: SDK sessions previously
+   * inherited the user's global hooks, and a PreToolUse gate blocked Read
+   * (observed live 2026-10-05). */
+  imagePath?: string | null;
   onActivity?: (message: string) => void;
+}
+
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
+async function buildPrompt(prompt: string, imagePath: string | null | undefined): Promise<string | AsyncIterable<SDKUserMessage>> {
+  if (!imagePath || !existsSync(imagePath)) return prompt;
+  const mediaType = IMAGE_MEDIA_TYPES[extname(imagePath).toLowerCase()] ?? "image/jpeg";
+  const data = await readFile(imagePath, "base64");
+  const content: ContentBlock[] = [
+    { type: "text", text: prompt },
+    { type: "image", source: { type: "base64", media_type: mediaType, data } },
+  ];
+  async function* messages(): AsyncGenerator<SDKUserMessage> {
+    yield {
+      type: "user",
+      message: { role: "user", content },
+      parent_tool_use_id: null,
+    } as SDKUserMessage;
+  }
+  return messages();
 }
 
 /**
  * Layer B entry point (PLAN.md §8): one curated prompt in, one schema-validated
- * JSON object out. Web search + fetch enabled; Read enabled for image vision.
- * Subscription auth guard runs before every call — a stray ANTHROPIC_API_KEY
- * in subscription mode aborts rather than silently billing.
+ * JSON object out. Web search + fetch enabled; the token image rides along as
+ * an inline content block. `settingSources: []` keeps the pipeline session
+ * hermetic — no user/project settings, hooks, or CLAUDE.md leak in.
+ * Subscription auth guard runs before every call.
  */
 export async function runAgentJson<T>(
   prompt: string,
@@ -40,17 +77,21 @@ export async function runAgentJson<T>(
 ): Promise<T> {
   assertAuthMode();
 
+  if (opts.imagePath && !existsSync(opts.imagePath)) {
+    opts.onActivity?.(`image file missing at ${opts.imagePath} — running without vision`);
+  }
+
   let structured: unknown;
   let resultText = "";
   try {
     for await (const message of query({
-      prompt,
+      prompt: await buildPrompt(prompt, opts.imagePath),
       options: {
         model: opts.model,
         maxTurns: opts.maxTurns,
-        allowedTools: ["WebSearch", "WebFetch", "Read"],
+        allowedTools: ["WebSearch", "WebFetch"],
         permissionMode: "bypassPermissions",
-        additionalDirectories: opts.readDirs ?? [config.dataDir],
+        settingSources: [],
         systemPrompt:
           "You are a precise crypto-market analyst inside an automated pipeline. Follow the task exactly; output only what the schema asks for.",
         outputFormat: { type: "json_schema", schema: opts.jsonSchema },

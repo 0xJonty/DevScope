@@ -103,6 +103,7 @@ export async function runS5(ctx: ScanCtx): Promise<void> {
           model: reasoningConfig.thesis_model,
           maxTurns: reasoningConfig.max_turns_thesis,
           jsonSchema: thesisJsonSchema as unknown as Record<string, unknown>,
+          imagePath: dossier.image_path,
           onActivity: (m) => ctx.emit({ type: "agent", stage: "s5", message: `  ${m}` }),
         });
         if (thesis.mint !== entry.mint) {

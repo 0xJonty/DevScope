@@ -2,7 +2,10 @@
  * Thesis prompt — versioned (PLAN.md §8). Bump PROMPT_VERSION on any change
  * that could shift outputs; profiles and theses record it.
  */
-export const THESIS_PROMPT_VERSION = "thesis-v1.0.0";
+// v1.1.0 (2026-10-05): token image is attached inline as a content block
+// instead of asking the agent to Read a file path (user-level hooks blocked
+// Read inside SDK sessions).
+export const THESIS_PROMPT_VERSION = "thesis-v1.1.0";
 
 export interface ThesisDossier {
   mint: string;
@@ -29,7 +32,7 @@ export function buildThesisPrompt(dossier: ThesisDossier): string {
 TOKEN DOSSIER (deterministic data, trust it):
 ${JSON.stringify(data, null, 2)}
 
-${image_path ? `TOKEN IMAGE: read the file at ${image_path} and assess it visually — effort level, AI-generated vs stolen vs original art, meme lineage. Image quality/style is a real deployment-style signal; report it in image_notes.` : "TOKEN IMAGE: none available."}
+${image_path ? "TOKEN IMAGE: attached to this message. Assess it visually — effort level, AI-generated vs stolen vs original art, meme lineage. Image quality/style is a real deployment-style signal; report it in image_notes." : "TOKEN IMAGE: none available."}
 
 TASK:
 1. Web-search for events in a ±48h window around the launch time (${data.created_at_iso}) relevant to the token's name/ticker/description: news, celebrity moments, crypto-twitter metas, trends it could be riding.
