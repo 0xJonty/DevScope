@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.4] — 2026-10-05
+
+### Changed
+- Crosshair mark recolored red (#e0524f) in favicon and sidebar.
+
 ## [0.7.3] — 2026-10-05
 
 ### Changed
