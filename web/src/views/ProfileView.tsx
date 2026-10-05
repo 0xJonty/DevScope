@@ -18,10 +18,10 @@ const CONFIDENCE_STYLES: Record<string, string> = {
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-surface border border-line rounded-lg px-4 py-3">
-      <div className="text-faint text-xs">{label}</div>
-      <div className="text-lg font-semibold tracking-tight mt-0.5">{value}</div>
-      {sub && <div className="text-dim text-xs mt-0.5">{sub}</div>}
+    <div className="bg-surface border border-line rounded-lg px-4 py-3 min-w-0">
+      <div className="text-faint text-xs truncate">{label}</div>
+      <div className="text-lg font-semibold tracking-tight mt-0.5 truncate">{value}</div>
+      {sub && <div className="text-dim text-xs mt-0.5 truncate">{sub}</div>}
     </div>
   );
 }
@@ -41,7 +41,7 @@ function Prose({ md }: { md: string }) {
 function ThesisCard({ t }: { t: StructuredThesis }) {
   const j = t.thesis;
   return (
-    <article className="bg-surface border border-line rounded-lg p-4">
+    <article className="bg-surface border border-line rounded-lg p-4 flex flex-col">
       <div className="flex items-start gap-3">
         {t.imageUrl ? (
           <img src={t.imageUrl} alt="" className="w-11 h-11 rounded-md object-cover border border-line shrink-0" />
@@ -97,7 +97,7 @@ function ThesisCard({ t }: { t: StructuredThesis }) {
         <p className="text-faint text-sm mt-3">No thesis for this token in the latest scan.</p>
       )}
 
-      <div className="flex gap-3 mt-3 text-xs">
+      <div className="flex gap-3 mt-auto pt-3 text-xs">
         <a href={`https://pump.fun/coin/${t.mint}`} target="_blank" rel="noreferrer" className="text-faint hover:text-accent">
           pump.fun ↗
         </a>
@@ -115,7 +115,7 @@ function ThesisGroup({ title, items }: { title: string; items: StructuredThesis[
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-medium text-dim">{title}</h2>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 min-[1500px]:grid-cols-3 gap-3">
         {items.map((t) => (
           <ThesisCard key={t.mint} t={t} />
         ))}
@@ -140,6 +140,14 @@ export default function ProfileView({ wallet, back, rescan }: { wallet: string; 
   const worked = profile.theses.filter((t) => t.classification === "worked");
   const mids = profile.theses.filter((t) => t.classification === "mid");
   const failures = profile.theses.filter((t) => t.classification === "failed");
+  const naming = fp
+    ? Object.entries(fp.namingPatterns)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`)
+        .join(" · ")
+    : "";
 
   return (
     <div className="space-y-8 pb-16">
@@ -157,38 +165,61 @@ export default function ProfileView({ wallet, back, rescan }: { wallet: string; 
         </button>
       </header>
 
-      <section className="grid grid-cols-5 gap-3">
-        <StatTile
-          label="Bond rate (window)"
-          value={fp ? `${(fp.bondRate * 100).toFixed(1)}%` : "—"}
-          sub={fp ? `${fp.counts.worked}/${fp.counts.total} bonded` : undefined}
-        />
-        <StatTile label="Deploys / day" value={fp ? String(fp.deploysPerDay) : "—"} sub={fp ? `${fp.windowDays}d window` : undefined} />
-        <StatTile
-          label="Lifetime deploys"
-          value={profile.lifetime.deploys?.toLocaleString() ?? "—"}
-          sub={profile.lifetime.graduated != null ? `${profile.lifetime.graduated} graduated` : undefined}
-        />
-        <StatTile label="All-time best ATH" value={fmtUsd(profile.lifetime.bestAthUsd)} sub={profile.lifetime.bestMint ? shortWallet(profile.lifetime.bestMint) : undefined} />
-        <StatTile
-          label="Window ATH"
-          value={fmtUsd(fp?.athUsd.max ?? null)}
-          sub={fp ? `median ${fmtUsd(fp.athUsd.median)}` : undefined}
-        />
+      {/* Deployer stats + description: verdict beside the full stat/fingerprint tile grid. */}
+      <section className="grid grid-cols-1 min-[1280px]:grid-cols-[minmax(380px,2fr)_5fr] gap-4 items-start">
+        {profile.sections.verdict && (
+          <div className="border-l-2 border-accent bg-surface rounded-r-lg px-5 py-4 h-full">
+            <Prose md={profile.sections.verdict} />
+          </div>
+        )}
+        <div className="grid grid-cols-3 min-[1500px]:grid-cols-4 gap-3">
+          <StatTile
+            label="Bond rate (window)"
+            value={fp ? `${(fp.bondRate * 100).toFixed(1)}%` : "—"}
+            sub={fp ? `${fp.counts.worked}/${fp.counts.total} bonded` : undefined}
+          />
+          <StatTile label="Deploys / day" value={fp ? String(fp.deploysPerDay) : "—"} sub={fp ? `${fp.windowDays}d window` : undefined} />
+          <StatTile
+            label="Lifetime deploys"
+            value={profile.lifetime.deploys?.toLocaleString() ?? "—"}
+            sub={profile.lifetime.graduated != null ? `${profile.lifetime.graduated} graduated` : undefined}
+          />
+          <StatTile
+            label="All-time best ATH"
+            value={fmtUsd(profile.lifetime.bestAthUsd)}
+            sub={profile.lifetime.bestMint ? shortWallet(profile.lifetime.bestMint) : undefined}
+          />
+          <StatTile
+            label="Window ATH"
+            value={fmtUsd(fp?.athUsd.max ?? null)}
+            sub={fp ? `median ${fmtUsd(fp.athUsd.median)} · p90 ${fmtUsd(fp.athUsd.p90)}` : undefined}
+          />
+          <StatTile
+            label="Deploy cadence"
+            value={fp?.medianGapMinutes != null ? `${Math.round(fp.medianGapMinutes)} min` : "—"}
+            sub="median gap"
+          />
+          <StatTile
+            label="Peak activity"
+            value={fp?.peakHourUtc != null ? `${fp.peakHourUtc}:00 UTC` : "—"}
+            sub={fp?.inferredTimezoneGuess ? "tz heuristic available" : undefined}
+          />
+          <StatTile
+            label="Token lifespan"
+            value={fp?.lifespanHours.median != null ? `${fp.lifespanHours.median.toFixed(1)}h` : "—"}
+            sub={fp?.lifespanHours.p90 != null ? `p90 ${fp.lifespanHours.p90.toFixed(1)}h` : undefined}
+          />
+          <StatTile
+            label="Cashback coins"
+            value={fp?.cashbackShare != null ? `${(fp.cashbackShare * 100).toFixed(1)}%` : "—"}
+            sub="of window deploys"
+          />
+          <div className="bg-surface border border-line rounded-lg px-4 py-3 col-span-2 min-[1500px]:col-span-3 min-w-0">
+            <div className="text-faint text-xs">Naming patterns (window hits)</div>
+            <div className="text-sm mt-1 text-dim truncate">{naming || "—"}</div>
+          </div>
+        </div>
       </section>
-
-      {profile.sections.verdict && (
-        <section className="border-l-2 border-accent bg-surface rounded-r-lg px-5 py-4">
-          <Prose md={profile.sections.verdict} />
-        </section>
-      )}
-
-      {profile.sections.playbook && (
-        <section className="bg-surface border border-line rounded-lg px-5 py-4 space-y-2">
-          <h2 className="text-sm font-medium text-dim">Playbook signals</h2>
-          <Prose md={profile.sections.playbook} />
-        </section>
-      )}
 
       {(profile.sections.works || profile.sections.fails) && (
         <section className="grid grid-cols-2 gap-4">
@@ -208,49 +239,12 @@ export default function ProfileView({ wallet, back, rescan }: { wallet: string; 
       <ThesisGroup title={`Almost made it (${mids.length})`} items={mids} />
       <ThesisGroup title={`Representative failures (${failures.length})`} items={failures} />
 
-      {fp && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-dim">Statistical fingerprint</h2>
-          <div className="bg-surface border border-line rounded-lg px-5 py-4 grid grid-cols-3 gap-x-8 gap-y-3 text-sm">
-            <div>
-              <div className="text-faint text-xs">Median gap between deploys</div>
-              <div className="mt-0.5">{fp.medianGapMinutes == null ? "—" : `${Math.round(fp.medianGapMinutes)} min`}</div>
-            </div>
-            <div>
-              <div className="text-faint text-xs">Peak activity</div>
-              <div className="mt-0.5">{fp.peakHourUtc != null ? `${fp.peakHourUtc}:00 UTC` : "—"}</div>
-            </div>
-            <div>
-              <div className="text-faint text-xs">ATH p90</div>
-              <div className="mt-0.5">{fmtUsd(fp.athUsd.p90)}</div>
-            </div>
-            <div>
-              <div className="text-faint text-xs">Token lifespan (median)</div>
-              <div className="mt-0.5">{fp.lifespanHours.median != null ? `${fp.lifespanHours.median.toFixed(1)}h` : "—"}</div>
-            </div>
-            <div>
-              <div className="text-faint text-xs">Cashback coins</div>
-              <div className="mt-0.5">{fp.cashbackShare != null ? `${(fp.cashbackShare * 100).toFixed(1)}%` : "—"}</div>
-            </div>
-            <div>
-              <div className="text-faint text-xs">Naming patterns</div>
-              <div className="mt-0.5 text-dim text-xs leading-relaxed">
-                {Object.entries(fp.namingPatterns)
-                  .filter(([, v]) => v > 0)
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 5)
-                  .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
-                  .join(" · ") || "—"}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       {profile.sections.questions && (
         <section className="border border-line rounded-lg px-5 py-4 space-y-2">
           <h2 className="text-sm font-medium text-dim">Open questions / low confidence</h2>
-          <Prose md={profile.sections.questions} />
+          <div className="min-[1280px]:columns-2 gap-10">
+            <Prose md={profile.sections.questions} />
+          </div>
         </section>
       )}
     </div>

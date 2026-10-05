@@ -119,7 +119,6 @@ export interface StructuredProfile {
     verdict: string | null;
     works: string | null;
     fails: string | null;
-    playbook: string | null;
     questions: string | null;
   };
   theses: StructuredThesis[];

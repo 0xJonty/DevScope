@@ -192,9 +192,8 @@ bands_version / prompt_version / data_providers
 ---
 # Verdict            ← 3–5 line tl;dr, pinned in UI
 # Statistical fingerprint   ← table (cadence, hours UTC, bond rate, ATH dist, dev-buy)
-# What works for them       ← narrative types ranked, examples
+# What works for them       ← deploy/narrative types ranked, examples (removed "Playbook signals" 2026-10-05: trade-signal output is out of scope — the tool studies deploy styles as reference for the owner's own deploys)
 # What fails for them
-# Playbook signals          ← "if this wallet does X → historically Y"
 # Top deploys — theses      ← full thesis per token, evidence-linked
 # Mid tier — theses
 # Representative failures — theses
@@ -211,7 +210,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 
 1. **Scan** — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
 2. **Library** — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline.
-3. **Profile** — structured renderer (updated 2026-10-05): stat-tile header (bond rate, deploys/day, lifetime totals, all-time best), pinned verdict, playbook panel, works/fails split, thesis cards with token image/chips/collapsible evidence, fingerprint grid, open questions. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
+3. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
 4. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
 
 ---

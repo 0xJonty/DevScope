@@ -203,7 +203,6 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         verdict: section("Verdict"),
         works: section("What works for them"),
         fails: section("What fails for them"),
-        playbook: section("Playbook signals"),
         questions: section("Low-confidence notes / open questions"),
       },
       theses,

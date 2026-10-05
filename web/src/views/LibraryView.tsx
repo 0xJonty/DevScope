@@ -63,7 +63,7 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 2xl:grid-cols-3 gap-4">
         {visible.map((e) => (
           <article
             key={e.wallet}

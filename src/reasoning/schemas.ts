@@ -62,7 +62,6 @@ export const synthesisSchema = z.object({
   verdict: z.string().min(40),
   what_works_md: z.string(),
   what_fails_md: z.string(),
-  playbook_signals_md: z.string(),
   open_questions_md: z.string(),
 });
 
@@ -72,10 +71,9 @@ export const synthesisJsonSchema = {
   type: "object",
   properties: {
     verdict: { type: "string", description: "3-5 line tl;dr of this deployer" },
-    what_works_md: { type: "string", description: "Markdown: narrative types ranked with examples" },
-    what_fails_md: { type: "string", description: "Markdown: what fails for them" },
-    playbook_signals_md: { type: "string", description: "Markdown: 'if this wallet does X -> historically Y' signals" },
+    what_works_md: { type: "string", description: "Markdown: deploy/narrative types ranked by hit rate with examples" },
+    what_fails_md: { type: "string", description: "Markdown: what reliably fails for them" },
     open_questions_md: { type: "string", description: "Markdown: low-confidence notes / open questions / anomalies" },
   },
-  required: ["verdict", "what_works_md", "what_fails_md", "playbook_signals_md", "open_questions_md"],
+  required: ["verdict", "what_works_md", "what_fails_md", "open_questions_md"],
 } as const;

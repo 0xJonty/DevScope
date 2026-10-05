@@ -116,7 +116,6 @@ export function renderProfile(
     `# Statistical fingerprint\n\n${fingerprintTable(fp)}`,
     `# What works for them\n\n${synthesis.what_works_md}`,
     `# What fails for them\n\n${synthesis.what_fails_md}`,
-    `# Playbook signals\n\n${synthesis.playbook_signals_md}`,
     section("Top deploys — theses", by("worked").concat(by("pinned"))),
     section("Mid tier — theses", by("mid")),
     section("Representative failures — theses", by("failed")),

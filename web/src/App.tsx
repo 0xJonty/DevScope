@@ -43,7 +43,7 @@ export default function App() {
           })}
         </nav>
       </aside>
-      <main className="flex-1 px-10 py-8 max-w-5xl">
+      <main className="flex-1 min-w-0 px-10 py-8 max-w-[1800px] mx-auto">
         {view.name === "scan" && <ScanView />}
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
         {view.name === "profile" && (

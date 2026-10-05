@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-05 (profile layout rework; playbook removed)
+
+### Changed — profile format (breaking for new profiles)
+- **Playbook signals removed end-to-end** (synthesis schema, prompt, PROFILE.md section, API, UI): the tool's purpose is studying deploy styles as reference for the owner's own deploys, not generating trade signals — dropping it cuts synthesis cost and noise. `prompt_version` bumped to `synthesis-v1.1.0`; the synthesis prompt now explicitly targets "what deploy choices separate hits from misses". Old profiles keep their playbook text in markdown; the UI no longer shows it.
+- **Full-width desktop layout** (max 1800px, centred): header now merges the verdict panel with a combined stats + statistical-fingerprint tile grid (bond rate, cadence, lifetime totals, ATH distribution, lifespan, cashback, naming patterns); works/fails split sits directly below; thesis cards flow 3-per-row above ~1500px, 2 below; open questions flows into two columns on wide screens. Standalone fingerprint section removed (merged into header). Library cards go 3-wide on very wide screens.
+
 ## [0.6.0] — 2026-10-05 (lifetime highlights + structured profile UI)
 
 ### Added

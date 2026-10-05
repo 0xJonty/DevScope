@@ -27,10 +27,9 @@ html {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
-/* Rendered profile markdown */
+/* Rendered profile markdown — width is controlled by the panel it sits in. */
 .profile-md {
   line-height: 1.65;
-  max-width: 76ch;
 }
 .profile-md h1 {
   font-size: 1.15rem;
