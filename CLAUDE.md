@@ -60,5 +60,7 @@ Built-in `cc-plugin-*` plugins need no special handling.
 - Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint.
 - Validate every external response (providers, agent outputs) against schemas; fail loud, never silently degrade data.
 - Reasoning prompts live in `/src/reasoning/prompts/` as versioned files — treat prompt edits like code changes (commit, version, changelog if behavior shifts).
+- Reasoning prompt standards (owner-set, keep on every edit): study-not-trade framing (never "fade X"-style trader phrasing), no fluff, no fingerprint-stat recaps in prose sections, cross-cutting patterns stated once in `deployer_patterns_md`.
+- Adding a profile section touches the whole chain: `schemas.ts` (zod + JSON schema) → `profile-render.ts` → `routes.ts` section() → `web/src/api.ts` → `ProfileView.tsx`. Old profiles lack new sections; UI must null-hide them.
 - Test data-layer work against real deployer wallets early; quota estimates before scans, always.
 - Keep it simple: this runs at 1–2 scans/day for one user. No premature scaling, no unnecessary abstraction beyond the `DataProvider` interface.
