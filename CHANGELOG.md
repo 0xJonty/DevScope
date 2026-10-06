@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-07 (fix: agent link access)
+
+### Fixed
+- Thesis agents could not open X/Instagram/protected links ("could not be opened HTTP 402" unknowns): Layer B sessions only had the SDK's built-in `WebFetch` — a plain bot fetch that x.com answers with HTTP 402 (pay-per-crawl) — and `settingSources: []` (0.7.1) strips user-level MCP servers, so the Scrapling server never reached them. Agents now get the Scrapling MCP passed explicitly (`mcp__scrapling__get` + `mcp__scrapling__stealthy_fetch`) via the new `SCRAPLING_MCP_COMMAND` env var. `thesis-v1.3.0` routes link-opening through those tools (get → stealthy_fetch escalation; css_selector/markdown to keep outputs lean; unreachable links recorded in "unknowns", never guessed). Unset var degrades loudly to WebFetch-only; a configured-but-missing binary aborts.
+
+### Changed
+- `max_turns_thesis` 12 → 16: the get → stealthy_fetch escalation can double per-link tool calls.
+
 ## [0.8.0] — 2026-10-05 (reasoning prompt rework)
 
 ### Added

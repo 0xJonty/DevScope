@@ -71,6 +71,8 @@ export const config = {
   dataDir: resolve(ROOT, process.env.DATA_DIR ?? "./data"),
   profilesDir: resolve(ROOT, process.env.PROFILES_DIR ?? "./profiles"),
   authMode: (process.env.AUTH_MODE ?? "subscription") as "subscription" | "api_key",
+  /** Scrapling MCP binary for Layer B link fetching (null = WebFetch-only, loud warn). */
+  scraplingMcpCommand: process.env.SCRAPLING_MCP_COMMAND?.trim() || null,
 };
 
 /** Keys are validated lazily at the point of use so keyless features still run. */

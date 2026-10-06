@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { z } from "zod";
-import { assertAuthMode } from "../config.js";
+import { assertAuthMode, config } from "../config.js";
 
 export class RateLimitPause extends Error {
   constructor(detail: string) {
@@ -41,6 +41,33 @@ export interface AgentRunOptions {
   onActivity?: (message: string) => void;
 }
 
+/**
+ * Scrapling MCP (SCRAPLING_MCP_COMMAND) gives agents a stealth-browser fetch
+ * for link verification — the built-in WebFetch is a plain bot fetch that x.com
+ * answers with HTTP 402 (pay-per-crawl) and Instagram/protected sites block.
+ * `settingSources: []` strips user-level MCP config, so the server must be
+ * passed explicitly here. Unconfigured degrades to WebFetch-only with one loud
+ * warning; a configured-but-missing binary aborts.
+ */
+let warnedNoScrapling = false;
+function resolveScraplingMcp(onActivity?: (message: string) => void): { type: "stdio"; command: string } | null {
+  const command = config.scraplingMcpCommand;
+  if (!command) {
+    if (!warnedNoScrapling) {
+      warnedNoScrapling = true;
+      const msg =
+        "SCRAPLING_MCP_COMMAND unset — agents fall back to built-in WebFetch; X/Instagram links will fail (HTTP 402 / bot-blocked)";
+      console.warn(`[reasoning] ${msg}`);
+      onActivity?.(msg);
+    }
+    return null;
+  }
+  if (command.startsWith("/") && !existsSync(command)) {
+    throw new Error(`SCRAPLING_MCP_COMMAND points to a missing binary: ${command}`);
+  }
+  return { type: "stdio", command };
+}
+
 type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
@@ -65,7 +92,8 @@ async function buildPrompt(prompt: string, imagePath: string | null | undefined)
 
 /**
  * Layer B entry point (PLAN.md §8): one curated prompt in, one schema-validated
- * JSON object out. Web search + fetch enabled; the token image rides along as
+ * JSON object out. Web search + fetch enabled, plus the Scrapling MCP fetch
+ * tools when configured; the token image rides along as
  * an inline content block. `settingSources: []` keeps the pipeline session
  * hermetic — no user/project settings, hooks, or CLAUDE.md leak in.
  * Subscription auth guard runs before every call.
@@ -81,6 +109,8 @@ export async function runAgentJson<T>(
     opts.onActivity?.(`image file missing at ${opts.imagePath} — running without vision`);
   }
 
+  const scrapling = resolveScraplingMcp(opts.onActivity);
+
   let structured: unknown;
   let resultText = "";
   try {
@@ -89,7 +119,10 @@ export async function runAgentJson<T>(
       options: {
         model: opts.model,
         maxTurns: opts.maxTurns,
-        allowedTools: ["WebSearch", "WebFetch"],
+        allowedTools: scrapling
+          ? ["WebSearch", "WebFetch", "mcp__scrapling__get", "mcp__scrapling__stealthy_fetch"]
+          : ["WebSearch", "WebFetch"],
+        ...(scrapling ? { mcpServers: { scrapling } } : {}),
         permissionMode: "bypassPermissions",
         settingSources: [],
         systemPrompt:
