@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-10-07 (mayhem-mode filter)
+
+### Added
+- Mayhem-mode launches are excluded from all results. pump.fun's Mayhem mode (opt-in AI agent randomly trades an extra 1B-token supply for the first 24h) produces gambling charts, not studyable deploys. Verified live: mayhem rows carry `mayhem_state` (`active`/`paused`/`completed`) in `/coins` enumeration; the field is absent on normal coins (`boost_mode` is a different, SOL-burn feature). Rows with `mayhem_state` are dropped at the provider boundary — they never reach the DB, fingerprint, dossiers, theses, or profiles — the enumeration window fills with real deploys instead, and the scan feed reports each exclusion. S1 also purges mayhem tokens (and their theses) cached before the filter existed. Known caveat: Solana Tracker lifetime deploy/graduated totals still count mayhem launches (not filterable there). Regression check: `scripts/verify-mayhem-filter.ts`.
+
 ## [0.8.1] — 2026-10-07 (fix: agent link access)
 
 ### Fixed

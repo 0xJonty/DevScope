@@ -65,6 +65,15 @@ export function getTokensByMints(mints: string[]): TokenRow[] {
   return db.select().from(schema.tokens).where(inArray(schema.tokens.mint, mints)).all();
 }
 
+/** Remove tokens (and their theses) that policy now excludes — e.g. mayhem-mode
+ * launches cached before the filter existed. The permanent-cache rule covers
+ * immutable history we keep, not rows the pipeline must never surface. */
+export function purgeTokens(mints: string[]): void {
+  if (mints.length === 0) return;
+  db.delete(schema.theses).where(inArray(schema.theses.mint, mints)).run();
+  db.delete(schema.tokens).where(inArray(schema.tokens.mint, mints)).run();
+}
+
 export function setTokenAth(mint: string, athUsd: number, athAt: number | null, source: string): void {
   db.update(schema.tokens)
     .set({ athUsd, athAt, athSource: source, fetchedAt: Date.now() })

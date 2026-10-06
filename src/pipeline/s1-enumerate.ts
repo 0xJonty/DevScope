@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db/index.js";
-import { upsertEnumeratedToken } from "../db/tokens.js";
+import { purgeTokens, upsertEnumeratedToken } from "../db/tokens.js";
 import { pumpfun, bitquery, solanatracker } from "../providers/index.js";
-import { getTopCreatedByAth } from "../providers/pumpfun.js";
+import { getMayhemExcludedMints, getTopCreatedByAth } from "../providers/pumpfun.js";
 import { BitqueryPlanRestrictedError } from "../providers/bitquery.js";
 import { MissingCredentialError } from "../config.js";
 import { getStageState, patchStageState, getScan, recordQuotaSpent } from "./checkpoint.js";
@@ -31,6 +31,18 @@ export async function runS1(ctx: ScanCtx): Promise<void> {
     });
     const tokens = await pumpfun.enumerateCreatedTokens!(ctx.wallet, ctx.windowN);
     for (const t of tokens) upsertEnumeratedToken(t);
+
+    // Mayhem-mode launches (AI-agent gambling charts) never enter results;
+    // purge covers rows cached before the filter existed (0.8.2).
+    const mayhemMints = getMayhemExcludedMints();
+    if (mayhemMints.length > 0) {
+      purgeTokens(mayhemMints);
+      ctx.emit({
+        type: "progress",
+        stage: "s1",
+        message: `Excluded ${mayhemMints.length} mayhem-mode deploy${mayhemMints.length === 1 ? "" : "s"} (AI-agent random chart — not studyable).`,
+      });
+    }
 
     const newFrom = tokens.length ? Math.min(...tokens.map((t) => t.createdAt)) : null;
     const newTo = tokens.length ? Math.max(...tokens.map((t) => t.createdAt)) : null;
@@ -68,6 +80,15 @@ export async function runS1(ctx: ScanCtx): Promise<void> {
     ctx.emit({ type: "progress", stage: "s1", message: "Fetching all-time top deploys (free, ATH-sorted)…" });
     const tops = await getTopCreatedByAth(ctx.wallet, 10);
     for (const t of tops) upsertEnumeratedToken(t);
+    const mayhemTops = getMayhemExcludedMints();
+    if (mayhemTops.length > 0) {
+      purgeTokens(mayhemTops);
+      ctx.emit({
+        type: "log",
+        stage: "s1",
+        message: `Excluded ${mayhemTops.length} mayhem-mode token${mayhemTops.length === 1 ? "" : "s"} from the all-time top list.`,
+      });
+    }
     const best = tops[0];
     if (best?.athUsd != null) {
       db.update(schema.deployers)

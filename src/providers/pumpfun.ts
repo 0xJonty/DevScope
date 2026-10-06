@@ -20,6 +20,11 @@ import {
  * the max-merge with Solana Tracker's ATH (see pipeline S2).
  * Also verified: `sort=ath_market_cap&order=DESC` works with the creator
  * filter — one free call returns a wallet's all-time top deploys by ATH.
+ * VERIFIED LIVE 2026-10-07: mayhem-mode launches (opt-in AI agent randomly
+ * trades an extra 1B-token supply for 24h — a gambling chart, not a deploy
+ * worth studying) carry `mayhem_state` ('active' | 'paused' | 'completed');
+ * the field is ABSENT on normal coins. Mayhem rows are dropped here at the
+ * provider boundary so they can never reach the DB, stats, or dossiers.
  */
 
 const coinSchema = z.object({
@@ -41,7 +46,20 @@ const coinSchema = z.object({
   last_trade_timestamp: z.number().nullish(),
   reply_count: z.number().nullish(),
   pool_address: z.string().nullish(),
+  mayhem_state: z.string().nullish(),
 });
+
+/** Mints dropped by the mayhem filter in the most recent enumerate/top call.
+ * Single-user sequential pipeline — read right after the call (S1 uses it to
+ * purge stale cached rows and report the exclusion in the scan feed). */
+let lastMayhemExcluded: string[] = [];
+export function getMayhemExcludedMints(): string[] {
+  return lastMayhemExcluded;
+}
+
+function isMayhem(c: z.infer<typeof coinSchema>): boolean {
+  return c.mayhem_state != null;
+}
 
 const coinsPageSchema = z.array(z.looseObject(coinSchema.shape));
 
@@ -79,6 +97,7 @@ export const pumpfun: DataProvider = {
     const pageSize = providerConfig.providers.pumpfun!.page_size ?? 50;
     const out: EnumeratedToken[] = [];
     let offset = 0;
+    lastMayhemExcluded = [];
 
     while (out.length < maxTokens) {
       const url = `${base}/coins?offset=${offset}&limit=${pageSize}&creator=${wallet}&includeNsfw=true`;
@@ -98,6 +117,10 @@ export const pumpfun: DataProvider = {
           );
         }
         if (sinceMs != null && c.created_timestamp <= sinceMs) return out;
+        if (isMayhem(c)) {
+          lastMayhemExcluded.push(c.mint);
+          continue;
+        }
         out.push(toEnumerated(c));
         if (out.length >= maxTokens) break;
       }
@@ -121,6 +144,7 @@ export async function getTopCreatedByAth(wallet: string, limit: number): Promise
   if (!parsed.success) {
     throw new SchemaValidationError("pumpfun", parsed.error.message.slice(0, 500));
   }
+  lastMayhemExcluded = [];
   for (const c of parsed.data) {
     if (c.creator !== wallet) {
       throw new SchemaValidationError(
@@ -128,6 +152,7 @@ export async function getTopCreatedByAth(wallet: string, limit: number): Promise
         `creator filter returned foreign coin ${c.mint} on ATH sort — endpoint shape changed`
       );
     }
+    if (isMayhem(c)) lastMayhemExcluded.push(c.mint);
   }
-  return parsed.data.map(toEnumerated);
+  return parsed.data.filter((c) => !isMayhem(c)).map(toEnumerated);
 }
