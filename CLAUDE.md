@@ -57,6 +57,8 @@ Built-in `cc-plugin-*` plugins need no special handling.
 - Layer B (Agent SDK) calls MUST set `settingSources: []` — SDK sessions otherwise inherit user-level hooks/settings (a global PreToolUse hook blocked agents' Read calls). Never have agents Read local files; attach them as inline base64 content blocks (see `src/reasoning/agent.ts`).
 - `settingSources: []` also strips user-level MCP servers, so any MCP an agent needs must be passed explicitly via the `mcpServers` query option. Link fetching uses the Scrapling MCP (`SCRAPLING_MCP_COMMAND` in `.env`) — the SDK's built-in WebFetch is a plain bot fetch that x.com answers with HTTP 402 and Instagram/protected sites block.
 - Cheap pipeline testing: `npm run cli -- scan <wallet> --through s2|s4` runs stages without Layer B cost; one-off tsx scripts must live inside the repo (module resolution fails from /tmp).
+- Live regression checks: `npx tsx scripts/verify-mayhem-filter.ts <creator>` (free) after touching provider schemas/filters; `scripts/verify-scrapling-agent.ts` (one small Layer B call) after touching agent tooling. Fixture wallets are passed as args — never committed.
+- Policy exclusions (e.g. mayhem-mode tokens) filter at the provider boundary — excluded rows never enter the DB; S1 purges stale cached rows and reports exclusions in the scan feed.
 - Stop the dev server with `kill $(lsof -ti:5717)` — `pkill -f` matches the shell wrapper and kills itself (exit 144).
 - Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint.
 - Validate every external response (providers, agent outputs) against schemas; fail loud, never silently degrade data.
