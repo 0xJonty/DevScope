@@ -112,6 +112,16 @@ export async function runS5(ctx: ScanCtx): Promise<void> {
         if (thesis.evidence.filter((e) => e.found).length === 0 && thesis.confidence !== "low") {
           thesis = { ...thesis, confidence: "low" }; // enforce the in-prompt rule mechanically too
         }
+        // Soft style lint (prompt standards, CLAUDE.md): longevity/elimination
+        // phrasing surfaces in the feed as a flag only — never fails the run.
+        const lintHit = thesis.thesis.match(/retrace|drawdown|over the following|rather than|\bnot a\b/i);
+        if (lintHit) {
+          ctx.emit({
+            type: "log",
+            stage: "s5",
+            message: `style lint (${row.ticker}): thesis contains "${lintHit[0]}" — check against prompt standards (longevity/elimination phrasing).`,
+          });
+        }
       } catch (err) {
         if (err instanceof RateLimitPause) throw new ScanPausedError(err.message);
         if (err instanceof AgentOutputError && attempt === 1) {

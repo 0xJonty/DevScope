@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-10-08 (prompt standards: ATH-centric, positive assertions)
+
+### Changed
+- `thesis-v1.4.0`: lifecycle-reality framing — deploys live minutes to hours and ~99% retrace to zero, so retrace/drawdown/multi-day price history are never findings; performance = the ATH reached + how the narrative performed at its moment, with longevity mentioned only when anomalous. `curve_stats` reframed as attention-spike measures (time-to-ATH = how buying arrived: near-instant ≈ bundled/sniped, gradual ≈ organic; retrace speed ignored). Positive-assertion style rule: state what the deploy IS — no elimination reasoning ("this is X, not Y"), no self-contradiction; a competing read gets one line in `unknowns`. Vamp check reports PvP findings only on evidence — no "this wasn't a vamp" prose.
+- `synthesis-v1.3.0`: same lifecycle framing (quantity-over-quality deployer model; never discuss token sustainability or long-term performance); verdict must describe style positively (no "not a X deployer" constructions).
+- S5 soft style lint: fresh theses matching longevity/elimination phrasing (`retrace|drawdown|over the following|rather than|not a`) are flagged in the scan feed (log only, never fails the run) to surface prompt-standard drift between versions.
+- CLAUDE.md reasoning-prompt standards extended with the two new owner-set rules (ATH-centric judgment, positive assertions).
+
 ## [0.8.2] — 2026-10-07 (mayhem-mode filter)
 
 ### Added
