@@ -1,0 +1,4 @@
+{
+  "comment": "Provider-boundary content filters. include_mayhem=false (default) drops pump.fun mayhem-mode launches before they reach the DB; true lets them through as ordinary deploys. Toggle lives in Settings.",
+  "include_mayhem": false
+}

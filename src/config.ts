@@ -17,7 +17,20 @@ export class MissingCredentialError extends Error {
 
 const bandsSchema = z.object({
   bands_version: z.string(),
+  worked_mode: z.enum(["bonded", "ath_usd"]),
+  worked_min_ath_usd: z.number(),
   mid_min_ath_usd: z.number(),
+});
+
+/** Factory defaults for the Settings "reset to defaults" button. */
+export const BAND_DEFAULTS = {
+  worked_mode: "bonded",
+  worked_min_ath_usd: 100000,
+  mid_min_ath_usd: 15000,
+} as const;
+
+const filtersSchema = z.object({
+  include_mayhem: z.boolean(),
 });
 
 const scanDefaultsSchema = z.object({
@@ -68,6 +81,7 @@ function loadJson<T>(rel: string, schema: z.ZodType<T>): T {
 }
 
 export const bands = loadJson("config/bands.json", bandsSchema);
+export const filters = loadJson("config/filters.json", filtersSchema);
 export const scanDefaults = loadJson("config/scan-defaults.json", scanDefaultsSchema);
 export const providerConfig = loadJson("config/providers.json", providersSchema);
 

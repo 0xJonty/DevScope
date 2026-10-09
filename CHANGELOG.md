@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-10-09 (customizable bands, mayhem flag, input validation)
+
+### Added
+- **Customizable classification bands** (Settings): WORKED is now a mode — `bonded` (default, graduated = worked) or `ath_usd` (worked = ATH ≥ a custom USD threshold, bonded flag ignored); the MID threshold was already editable and remains so. Validation enforces WORKED > MID with a plain-language error. "Reset to defaults" button restores factory values (`BAND_DEFAULTS` in `src/config.ts`). `bands.json` schema v2.0.0 (`worked_mode`, `worked_min_ath_usd`); profile frontmatter now records the worked rule (`bands_worked`) and synthesis receives the live rule instead of a hardcoded `bonded == true`. New endpoints: `PUT /api/settings/bands` (full shape), `POST /api/settings/bands/reset`.
+- **Mayhem include/exclude flag** (Settings → Filters): new `config/filters.json` with `include_mayhem` (default `false`, matching prior behavior). Off: mayhem-mode launches stay excluded at the provider boundary and S1 purges cached ones. On: they flow through every path (enumeration, token scan, vamp batch, all-time tops) as ordinary deploys. Toggling back off self-heals — the next scan purges any mayhem rows cached while the flag was on. `PUT /api/settings/filters`.
+- **Input validation with simple error messages** on every user input: Dev Scan (wallet base58 check, window 10–500 with NaN guard, alias ≤60 chars, per-mint pinned-mints check), Token Scan (contract base58 check), Settings (band thresholds — previously failed silently on bad input), Dev Library rename (length check + surfaced server errors, previously swallowed). Invalid fields get a red border + message; buttons disable until the form is valid. Server-side zod 400s now return one human-readable line (`field: message`) instead of raw zod JSON, wallet/mint bodies are validated against the base58 alphabet, and the web client surfaces the server's `error` field directly.
+
 ## [0.10.0] — 2026-10-09 (Vamp Scan)
 
 ### Added

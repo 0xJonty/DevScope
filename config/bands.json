@@ -1,11 +1,12 @@
 {
-  "bands_version": "1.0.0",
-  "comment": "Classification bands (PLAN.md §6). Config, not code — pump.fun mechanics drift. Profiles record the bands_version used at scan time.",
-  "worked": "bonded == true",
+  "bands_version": "2.0.0",
+  "comment": "Classification bands (PLAN.md §6). Config, not code — pump.fun mechanics drift. Profiles record the bands_version used at scan time. worked_mode 'bonded' = worked means graduated; 'ath_usd' = worked means ATH >= worked_min_ath_usd (bonded flag ignored). Defaults live in src/config.ts (BAND_DEFAULTS) — the Settings reset button restores them.",
+  "worked_mode": "bonded",
+  "worked_min_ath_usd": 100000,
   "mid_min_ath_usd": 15000,
   "rules": {
-    "worked": "bonded == true",
-    "mid": "!bonded && ath_usd > mid_min_ath_usd",
-    "failed": "!bonded && ath_usd <= mid_min_ath_usd"
+    "worked": "worked_mode == 'bonded' ? bonded : ath_usd >= worked_min_ath_usd",
+    "mid": "!worked && ath_usd > mid_min_ath_usd",
+    "failed": "the rest"
   }
 }

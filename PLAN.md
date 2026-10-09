@@ -77,7 +77,7 @@ Repo layout:
 /web              # vite app
 /profiles         # *-PROFILE.md (source of truth)
 /data             # sqlite, cached token images
-/config           # bands.json, scan-defaults.json, providers.json
+/config           # bands.json, filters.json, scan-defaults.json, providers.json
 ```
 
 ---
@@ -89,7 +89,7 @@ mint, name, ticker, description, image URI, socials (x/tg/web), created_at, crea
 
 ### 5.2 Providers (priority order, behind `DataProvider` interface)
 
-1. **pump.fun unofficial frontend API** — enumeration of a wallet's created coins + metadata + bonded flag. Free, no key. Fragile/undocumented → wrap with retries, strict response validation, and loud failure surfacing. Never the quota'd path. **Mayhem-mode launches are excluded at this boundary** (2026-10-07): rows carrying `mayhem_state` are opt-in AI-agent gambling charts (the agent randomly trades an extra 1B-token supply for 24h), not studyable deploys — they never reach the DB, fingerprint, dossiers, or profiles, and S1 purges any cached before the filter existed. Caveat: Solana Tracker's lifetime deploy/graduated totals cannot be filtered and still count mayhem launches.
+1. **pump.fun unofficial frontend API** — enumeration of a wallet's created coins + metadata + bonded flag. Free, no key. Fragile/undocumented → wrap with retries, strict response validation, and loud failure surfacing. Never the quota'd path. **Mayhem-mode launches are excluded at this boundary by default** (2026-10-07; user-flaggable since 0.11.0 via Settings → `config/filters.json` `include_mayhem`): rows carrying `mayhem_state` are opt-in AI-agent gambling charts (the agent randomly trades an extra 1B-token supply for 24h), not studyable deploys — with the flag off they never reach the DB, fingerprint, dossiers, or profiles, and S1 purges any cached earlier (including while the flag was on); with the flag on they flow through as ordinary deploys. Caveat: Solana Tracker's lifetime deploy/graduated totals cannot be filtered and still count mayhem launches.
 2. **Solana Tracker Data API (free tier)** — per-token ATH + token detail. THE quota'd provider. Every call decrements the monthly ledger. *(Build note 2026-10-03: pump.fun enumeration already returns a USD `ath_market_cap` per token, so Solana Tracker is only hit for bonded tokens — whose post-graduation ATH pump.fun may not track (§16 TODO-VERIFY) — and ad-hoc pinned mints. This cuts quota use per scan from ~300 calls to single digits.)*
 3. **Bitquery (free dev tier)** — *(revised 2026-10-05: the free dev tier is restricted to the realtime dataset — archive queries return 403 — and realtime is too shallow for lifetime aggregates. Lifetime totals (deploy count + graduated count) now come from Solana Tracker's `/deployer/{wallet}` in one quota'd call; Bitquery is attempted opportunistically for the lifetime best-ever ATH and fills it only on a plan with archive access. Key is optional.)* Separate quota ledger.
 4. **GeckoTerminal (free)** — last-resort OHLCV; compute ATH from candles locally.
@@ -108,13 +108,16 @@ On-chain history is immutable → cache forever. `tokens` table is permanent; a 
 
 ```json
 {
-  "worked": "bonded == true",
-  "mid":    "!bonded && ath_usd > 15000",
-  "failed": "!bonded && ath_usd <= 15000"
+  "worked_mode": "bonded",          // "bonded" (default) | "ath_usd"
+  "worked_min_ath_usd": 100000,     // used when worked_mode = "ath_usd"
+  "mid_min_ath_usd": 15000
 }
 ```
 
-Bands are config, not code — pump.fun's fee/graduation mechanics change frequently (Dynamic Fees V1 → Jan 2026 fee-sharing/cashback overhaul → Mar 2026 redirect cap). Every profile records the band definition used at scan time.
+- `worked_mode: "bonded"` (default): worked = bonded, mid = !bonded && ath_usd > mid_min, failed = the rest.
+- `worked_mode: "ath_usd"` (0.11.0): worked = ath_usd ≥ worked_min (bonded flag ignored), mid = ath_usd > mid_min, failed = the rest. worked_min must exceed mid_min.
+
+All three values are user-editable in Settings; factory defaults live in `src/config.ts` (`BAND_DEFAULTS`) behind a reset button. Bands are config, not code — pump.fun's fee/graduation mechanics change frequently (Dynamic Fees V1 → Jan 2026 fee-sharing/cashback overhaul → Mar 2026 redirect cap). Every profile records the band definition used at scan time.
 
 ---
 
@@ -254,7 +257,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card, vamp panel with 🦇 start button). Individually scanned tokens only — deployer-scan dossiers never appear here.
 4b. **Dev-scan token page** (added 0.10.0) — 🦇 on a profile thesis card lands here and auto-starts the vamp scan (the button press is the consent; a plain page open never starts one). Token header + dev-scan thesis + vamp panel, back-link to the profile. Scoped under the deployer profile — not a Token Library entry.
 5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
-6. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
+6. **Settings** — quota meters per provider, defaults, bands editor (worked mode + thresholds, reset to defaults, 0.11.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display.
 
 ---
 

@@ -86,7 +86,7 @@ src/reasoning/    Agent SDK wrapper + versioned prompts (thesis/synthesis)
 src/db/           Drizzle schema (SQLite at data/app.db); migrations in /drizzle
 src/server/       Fastify (localhost only) + SSE + static UI
 web/              React/Vite/Tailwind dark UI
-config/           bands.json, scan-defaults.json, providers.json, reasoning.json
+config/           bands.json, filters.json, scan-defaults.json, providers.json, reasoning.json
 profiles/         *-PROFILE.md output (source of truth, gitignored)
 scripts/          smoke-test.ts + verify-*.ts live regression checks
 ```

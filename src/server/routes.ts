@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import type { FastifyReply, FastifyRequest, FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { bands, config, scanDefaults } from "../config.js";
+import { BAND_DEFAULTS, bands, config, filters, scanDefaults } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { getAllUsage } from "../providers/quota.js";
 import { createScan, estimateScanCost, requestPause, startScan } from "../pipeline/orchestrator.js";
@@ -22,17 +22,33 @@ import { SYNTHESIS_PROMPT_VERSION } from "../reasoning/prompts/synthesis.js";
 import { VAMP_PROMPT_VERSION } from "../reasoning/prompts/vamp.js";
 import type { ScanEvent, StageState } from "../pipeline/types.js";
 
+// Base58 Solana address (no 0, O, I, l), 32–44 chars.
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const walletField = z.string().trim().regex(BASE58, "not a valid Solana wallet address (base58, 32–44 chars)");
+const mintField = z.string().trim().regex(BASE58, "not a valid token mint address (base58, 32–44 chars)");
+
+/** Flatten a zod error into one short human-readable line for UI display. */
+const zodMsg = (err: z.ZodError): string =>
+  err.issues
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
+    .join("; ");
+
 const newScanBody = z.object({
-  wallet: z.string().min(32).max(50),
-  alias: z.string().max(60).nullish(),
-  windowN: z.number().int().min(10).max(scanDefaults.window_max).optional(),
-  pinnedMints: z.array(z.string()).max(5).optional(),
+  wallet: walletField,
+  alias: z.string().max(60, "name must be 60 characters or fewer").nullish(),
+  windowN: z
+    .number()
+    .int()
+    .min(10, "window must be at least 10 deploys")
+    .max(scanDefaults.window_max, `window must be at most ${scanDefaults.window_max} deploys`)
+    .optional(),
+  pinnedMints: z.array(mintField).max(5, "at most 5 pinned mints").optional(),
 });
 
-const newTokenScanBody = z.object({ mint: z.string().min(32).max(50), vamp: z.boolean().optional() });
+const newTokenScanBody = z.object({ mint: mintField, vamp: z.boolean().optional() });
 
 const newVampScanBody = z.object({
-  mint: z.string().min(32).max(50),
+  mint: mintField,
   triggerScanId: z.string().nullish(),
 });
 
@@ -64,7 +80,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   // ── Scans ──────────────────────────────────────────────────────────────
   app.post("/api/scans", async (req, reply) => {
     const parsed = newScanBody.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
     const { wallet, alias, windowN, pinnedMints } = parsed.data;
     const estimate = estimateScanCost(wallet, windowN ?? scanDefaults.window_n);
     const scanId = createScan({ wallet, alias: alias ?? null, windowN, pinnedMints });
@@ -117,7 +133,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   // ── Token scans (single-contract research scans) ──────────────────────
   app.post("/api/token-scans", async (req, reply) => {
     const parsed = newTokenScanBody.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
     const mint = parsed.data.mint.trim();
     const scanId = createTokenScan(mint, parsed.data.vamp ?? false);
     const estimate = estimateTokenScanCost(mint);
@@ -173,7 +189,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   // ── Vamp scans (opt-in PvP analysis, PLAN.md §7c) ─────────────────────
   app.post("/api/vamp-scans", async (req, reply) => {
     const parsed = newVampScanBody.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
     const mint = parsed.data.mint.trim();
     const scanId = createVampScan(mint, parsed.data.triggerScanId ?? null);
     return { scanId, estimate: estimateVampScanCost(), quota: getAllUsage() };
@@ -428,7 +444,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/profiles/:wallet/rename", async (req, reply) => {
     const wallet = (req.params as { wallet: string }).wallet;
     const body = z.object({ name: z.string().min(1).max(60) }).safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: body.error.message });
+    if (!body.success) return reply.code(400).send({ error: zodMsg(body.error) });
     const p = db.select().from(schema.profiles).where(eq(schema.profiles.wallet, wallet)).get();
     if (!p) return reply.code(404).send({ error: "no profile" });
     // Renaming a deployer renames the file; wallet in frontmatter stays the key (PLAN.md §9.2).
@@ -445,24 +461,69 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/settings", async () => ({
     authMode: config.authMode,
     scanDefaults,
-    bands: { bands_version: bands.bands_version, mid_min_ath_usd: bands.mid_min_ath_usd },
+    bands: {
+      bands_version: bands.bands_version,
+      worked_mode: bands.worked_mode,
+      worked_min_ath_usd: bands.worked_min_ath_usd,
+      mid_min_ath_usd: bands.mid_min_ath_usd,
+    },
+    bandDefaults: BAND_DEFAULTS,
+    filters: { include_mayhem: filters.include_mayhem },
     promptVersions: { thesis: THESIS_PROMPT_VERSION, synthesis: SYNTHESIS_PROMPT_VERSION, vamp: VAMP_PROMPT_VERSION },
     quota: getAllUsage(),
   }));
 
-  app.put("/api/settings/bands", async (req, reply) => {
-    const body = z.object({ mid_min_ath_usd: z.number().positive() }).safeParse(req.body);
-    if (!body.success) return reply.code(400).send({ error: body.error.message });
+  /** Persist new band values to config/bands.json (patch-bumping
+   * bands_version) and keep the running process consistent with the file. */
+  const writeBands = (next: {
+    worked_mode: "bonded" | "ath_usd";
+    worked_min_ath_usd: number;
+    mid_min_ath_usd: number;
+  }): string => {
     const path = resolve(config.root, "config/bands.json");
     const file = JSON.parse(readFileSync(path, "utf8"));
     const [maj, min, patch] = String(file.bands_version).split(".").map(Number);
     file.bands_version = `${maj}.${min}.${(patch ?? 0) + 1}`;
-    file.mid_min_ath_usd = body.data.mid_min_ath_usd;
-    file.rules.mid = "!bonded && ath_usd > mid_min_ath_usd";
+    file.worked_mode = next.worked_mode;
+    file.worked_min_ath_usd = next.worked_min_ath_usd;
+    file.mid_min_ath_usd = next.mid_min_ath_usd;
+    writeFileSync(path, JSON.stringify(file, null, 2) + "\n");
+    Object.assign(bands, next, { bands_version: file.bands_version });
+    return file.bands_version;
+  };
+
+  const bandsBody = z.object({
+    worked_mode: z.enum(["bonded", "ath_usd"]),
+    worked_min_ath_usd: z.number().positive("WORKED threshold must be a positive number"),
+    mid_min_ath_usd: z.number().positive("MID threshold must be a positive number"),
+  });
+
+  app.put("/api/settings/bands", async (req, reply) => {
+    const body = bandsBody.safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: zodMsg(body.error) });
+    const b = body.data;
+    if (b.worked_mode === "ath_usd" && b.worked_min_ath_usd <= b.mid_min_ath_usd) {
+      return reply
+        .code(400)
+        .send({ error: "WORKED threshold must be higher than the MID threshold" });
+    }
+    return { ok: true, bands_version: writeBands(b) };
+  });
+
+  app.post("/api/settings/bands/reset", async () => ({
+    ok: true,
+    bands_version: writeBands({ ...BAND_DEFAULTS }),
+  }));
+
+  app.put("/api/settings/filters", async (req, reply) => {
+    const body = z.object({ include_mayhem: z.boolean() }).safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: zodMsg(body.error) });
+    const path = resolve(config.root, "config/filters.json");
+    const file = JSON.parse(readFileSync(path, "utf8"));
+    file.include_mayhem = body.data.include_mayhem;
     writeFileSync(path, JSON.stringify(file, null, 2) + "\n");
     // Keep the running process consistent with the file.
-    (bands as { mid_min_ath_usd: number }).mid_min_ath_usd = body.data.mid_min_ath_usd;
-    (bands as { bands_version: string }).bands_version = file.bands_version;
-    return { ok: true, bands_version: file.bands_version };
+    (filters as { include_mayhem: boolean }).include_mayhem = body.data.include_mayhem;
+    return { ok: true, include_mayhem: file.include_mayhem };
   });
 }

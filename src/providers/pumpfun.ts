@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { providerConfig } from "../config.js";
+import { filters, providerConfig } from "../config.js";
 import { providerFetch } from "./http.js";
 import {
   ProviderError,
@@ -24,8 +24,10 @@ import {
  * VERIFIED LIVE 2026-10-07: mayhem-mode launches (opt-in AI agent randomly
  * trades an extra 1B-token supply for 24h — a gambling chart, not a deploy
  * worth studying) carry `mayhem_state` ('active' | 'paused' | 'completed');
- * the field is ABSENT on normal coins. Mayhem rows are dropped here at the
- * provider boundary so they can never reach the DB, stats, or dossiers.
+ * the field is ABSENT on normal coins. By default mayhem rows are dropped
+ * here at the provider boundary so they never reach the DB, stats, or
+ * dossiers; Settings → `filters.include_mayhem` (0.11.0) lets them through
+ * as ordinary deploys instead.
  */
 
 const coinSchema = z.object({
@@ -65,15 +67,18 @@ export function getMayhemExcludedMints(): string[] {
   return lastMayhemExcluded;
 }
 
+/** True when the row is mayhem-mode AND the user hasn't opted in to including
+ * mayhem coins (Settings → filters.include_mayhem). With the flag on, mayhem
+ * rows flow through as ordinary deploys. */
 function isMayhem(c: z.infer<typeof coinSchema>): boolean {
-  return c.mayhem_state != null;
+  return !filters.include_mayhem && c.mayhem_state != null;
 }
 
 /** Policy exclusion surfaced to the caller (token scan of a mayhem launch). */
 export class MayhemExcludedError extends Error {
   constructor(mint: string) {
     super(
-      `${mint} is a pump.fun mayhem-mode launch — excluded by policy (AI-agent gambling chart, not a studyable deploy).`
+      `${mint} is a pump.fun mayhem-mode launch — excluded (AI-agent gambling chart, not a studyable deploy). Enable "include mayhem coins" in Settings to scan it anyway.`
     );
     this.name = "MayhemExcludedError";
   }

@@ -32,8 +32,9 @@ export async function runS1(ctx: ScanCtx): Promise<void> {
     const tokens = await pumpfun.enumerateCreatedTokens!(ctx.wallet, ctx.windowN);
     for (const t of tokens) upsertEnumeratedToken(t);
 
-    // Mayhem-mode launches (AI-agent gambling charts) never enter results;
-    // purge covers rows cached before the filter existed (0.8.2).
+    // Mayhem-mode launches (AI-agent gambling charts) are dropped unless the
+    // include_mayhem filter setting is on; the purge covers rows cached before
+    // the filter existed (0.8.2) or while the flag was enabled.
     const mayhemMints = getMayhemExcludedMints();
     if (mayhemMints.length > 0) {
       purgeTokens(mayhemMints);

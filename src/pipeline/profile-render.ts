@@ -103,6 +103,7 @@ export function renderProfile(
     `lifetime: { total_deploys: ${meta.lifetime.total_deploys ?? "null"}, total_graduated: ${meta.lifetime.total_graduated ?? "null"}, best_ath_usd: ${meta.lifetime.best_ath_usd ?? "null"}, best_mint: ${meta.lifetime.best_mint ?? "null"}, best_at: ${meta.lifetime.best_at ?? "null"} }`,
     `tokens_analyzed: { worked: ${meta.tokensAnalyzed.worked}, mid: ${meta.tokensAnalyzed.mid}, failed: ${meta.tokensAnalyzed.failed}, dossier_count: ${meta.tokensAnalyzed.dossier_count} }`,
     `bands_version: ${meta.bandsVersion}`,
+    `bands_worked: ${bands.worked_mode === "ath_usd" ? `ath_usd >= ${bands.worked_min_ath_usd}` : "bonded"}`,
     `bands_mid_min_ath_usd: ${bands.mid_min_ath_usd}`,
     `prompt_version_thesis: ${meta.promptVersions.thesis}`,
     `prompt_version_synthesis: ${meta.promptVersions.synthesis}`,

@@ -41,7 +41,13 @@ export async function runS6(ctx: ScanCtx): Promise<void> {
       best_mint: deployer?.lifetimeBestMint ?? null,
     },
     fingerprint: fingerprint as unknown as Record<string, unknown>,
-    bands: { worked: "bonded == true", mid_min_ath_usd: bands.mid_min_ath_usd },
+    bands: {
+      worked:
+        bands.worked_mode === "ath_usd"
+          ? `ath_usd >= ${bands.worked_min_ath_usd}`
+          : "bonded == true",
+      mid_min_ath_usd: bands.mid_min_ath_usd,
+    },
     // Enriched so synthesis can cite names and spot a recurring dev X handle
     // across tokens' socials (prompt v1.2.0).
     theses: thesisRows.map((t) => {

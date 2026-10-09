@@ -154,10 +154,18 @@ export interface TokenDetail {
   thesis: ThesisJson | null;
 }
 
+export interface BandSettings {
+  worked_mode: "bonded" | "ath_usd";
+  worked_min_ath_usd: number;
+  mid_min_ath_usd: number;
+}
+
 export interface Settings {
   authMode: string;
   scanDefaults: { window_n: number; window_max: number; dossier: { cap: number } };
-  bands: { bands_version: string; mid_min_ath_usd: number };
+  bands: BandSettings & { bands_version: string };
+  bandDefaults: BandSettings;
+  filters: { include_mayhem: boolean };
   promptVersions: { thesis: string; synthesis: string };
   quota: QuotaMap;
 }
@@ -165,7 +173,15 @@ export interface Settings {
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`${res.status}: ${body.slice(0, 300)}`);
+    // API errors come back as { error: "message" } — surface just the message.
+    let message = `${res.status}: ${body.slice(0, 300)}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      if (parsed.error) message = parsed.error;
+    } catch {
+      /* non-JSON body — keep the raw fallback */
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }
@@ -289,12 +305,22 @@ export const api = {
       body: JSON.stringify({ name }),
     }).then(json),
   settings: () => fetch("/api/settings").then((r) => json<Settings>(r)),
-  setBands: (mid_min_ath_usd: number) =>
+  setBands: (bands: BandSettings) =>
     fetch("/api/settings/bands", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mid_min_ath_usd }),
+      body: JSON.stringify(bands),
     }).then((r) => json<{ ok: boolean; bands_version: string }>(r)),
+  resetBands: () =>
+    fetch("/api/settings/bands/reset", { method: "POST" }).then((r) =>
+      json<{ ok: boolean; bands_version: string }>(r)
+    ),
+  setFilters: (include_mayhem: boolean) =>
+    fetch("/api/settings/filters", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ include_mayhem }),
+    }).then((r) => json<{ ok: boolean; include_mayhem: boolean }>(r)),
   quota: () => fetch("/api/quota").then((r) => json<QuotaMap>(r)),
 };
 
@@ -313,6 +339,31 @@ export function subscribeScanEvents(
   };
   return () => source.close();
 }
+
+/** Base58 Solana address (no 0, O, I, l), 32–44 chars — mirrors the server rule. */
+export const BASE58_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/** Simple inline-error message for an address input, or null when fine.
+ * Empty input returns null — emptiness is handled by disabling the button. */
+export const addressError = (value: string, kind: "wallet" | "contract"): string | null => {
+  const v = value.trim();
+  if (!v || BASE58_ADDRESS.test(v)) return null;
+  return `Not a valid ${kind} address — expected base58, 32–44 characters.`;
+};
+
+/** Parse a user-typed number input; returns an error message or null. */
+export const numberError = (
+  value: string,
+  label: string,
+  opts: { min?: number; max?: number } = {}
+): string | null => {
+  if (value.trim() === "") return `${label} is required.`;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return `${label} must be a number.`;
+  if (opts.min != null && n < opts.min) return `${label} must be at least ${opts.min.toLocaleString("en-US")}.`;
+  if (opts.max != null && n > opts.max) return `${label} must be at most ${opts.max.toLocaleString("en-US")}.`;
+  return null;
+};
 
 export const fmtUsd = (n: number | null | undefined) =>
   n == null ? "—" : `$${Math.round(n).toLocaleString("en-US")}`;

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  addressError,
   api,
+  BASE58_ADDRESS,
+  numberError,
   subscribeScanEvents,
   type EstimateMap,
   type QuotaMap,
@@ -14,7 +17,7 @@ const STAGE_ORDER = ["s1", "s2", "s3", "s4", "s5", "s6", "s7"];
 export default function ScanView() {
   const [wallet, setWallet] = useState("");
   const [alias, setAlias] = useState("");
-  const [windowN, setWindowN] = useState(300);
+  const [windowStr, setWindowStr] = useState("300");
   const [pinned, setPinned] = useState("");
   const [estimate, setEstimate] = useState<EstimateMap | null>(null);
   const [quota, setQuota] = useState<QuotaMap | null>(null);
@@ -23,11 +26,24 @@ export default function ScanView() {
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Inline validation — simple messages next to each field.
+  const walletErr = addressError(wallet, "wallet");
+  const windowErr = numberError(windowStr, "Window", { min: 10, max: 500 });
+  const aliasErr = alias.length > 60 ? "Name must be 60 characters or fewer." : null;
+  const pinnedErr = (() => {
+    const mints = pinned.trim() ? pinned.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    if (mints.length > 5) return "At most 5 pinned mints.";
+    const bad = mints.find((m) => !BASE58_ADDRESS.test(m));
+    return bad ? `"${bad.slice(0, 12)}…" is not a valid mint address (base58, 32–44 chars).` : null;
+  })();
+  const windowN = Number(windowStr);
+  const formValid = wallet.trim().length > 0 && !walletErr && !windowErr && !aliasErr && !pinnedErr;
+
   // Pre-flight estimate vs remaining quota (PLAN.md §10).
   useEffect(() => {
     const t = setTimeout(() => {
-      if (wallet.length >= 32) {
-        api.estimate(wallet, windowN).then((r) => {
+      if (BASE58_ADDRESS.test(wallet.trim()) && !numberError(windowStr, "w", { min: 10, max: 500 })) {
+        api.estimate(wallet.trim(), Number(windowStr)).then((r) => {
           setEstimate(r.estimate);
           setQuota(r.quota);
         }, () => undefined);
@@ -36,7 +52,7 @@ export default function ScanView() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [wallet, windowN]);
+  }, [wallet, windowStr]);
 
   const refreshScan = useCallback((id: string) => {
     api.getScan(id).then(setScan, () => undefined);
@@ -69,13 +85,17 @@ export default function ScanView() {
 
   const start = async () => {
     setError(null);
+    if (!formValid) {
+      setError(walletErr ?? windowErr ?? aliasErr ?? pinnedErr ?? "Enter a wallet address first.");
+      return;
+    }
     setEvents([]);
     try {
       const res = await api.createScan({
         wallet: wallet.trim(),
         alias: alias.trim() || undefined,
         windowN,
-        pinnedMints: pinned.trim() ? pinned.split(",").map((s) => s.trim()) : undefined,
+        pinnedMints: pinned.trim() ? pinned.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
       });
       await api.startScan(res.scanId);
       refreshScan(res.scanId);
@@ -105,8 +125,9 @@ export default function ScanView() {
               onChange={(e) => setWallet(e.target.value)}
               placeholder="creator wallet (base58)"
               spellCheck={false}
-              className="w-full bg-surface border border-line rounded-md px-3 py-2 font-mono text-sm placeholder:text-faint focus:outline-none focus:border-accent"
+              className={`w-full bg-surface border rounded-md px-3 py-2 font-mono text-sm placeholder:text-faint focus:outline-none ${walletErr ? "border-failed/60" : "border-line focus:border-accent"}`}
             />
+            {walletErr && <p className="text-failed text-xs mt-1">{walletErr}</p>}
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-1">
@@ -115,8 +136,9 @@ export default function ScanView() {
                 id="alias"
                 value={alias}
                 onChange={(e) => setAlias(e.target.value)}
-                className="w-full bg-surface border border-line rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                className={`w-full bg-surface border rounded-md px-3 py-2 text-sm focus:outline-none ${aliasErr ? "border-failed/60" : "border-line focus:border-accent"}`}
               />
+              {aliasErr && <p className="text-failed text-xs mt-1">{aliasErr}</p>}
             </div>
             <div>
               <label className="text-dim text-xs block mb-1.5" htmlFor="window">Window (deploys)</label>
@@ -125,10 +147,11 @@ export default function ScanView() {
                 type="number"
                 min={10}
                 max={500}
-                value={windowN}
-                onChange={(e) => setWindowN(Number(e.target.value))}
-                className="w-full bg-surface border border-line rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                value={windowStr}
+                onChange={(e) => setWindowStr(e.target.value)}
+                className={`w-full bg-surface border rounded-md px-3 py-2 text-sm focus:outline-none ${windowErr ? "border-failed/60" : "border-line focus:border-accent"}`}
               />
+              {windowErr && <p className="text-failed text-xs mt-1">{windowErr}</p>}
             </div>
             <div>
               <label className="text-dim text-xs block mb-1.5" htmlFor="pinned">Pin mints (comma-sep)</label>
@@ -136,8 +159,9 @@ export default function ScanView() {
                 id="pinned"
                 value={pinned}
                 onChange={(e) => setPinned(e.target.value)}
-                className="w-full bg-surface border border-line rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:border-accent"
+                className={`w-full bg-surface border rounded-md px-3 py-2 font-mono text-sm focus:outline-none ${pinnedErr ? "border-failed/60" : "border-line focus:border-accent"}`}
               />
+              {pinnedErr && <p className="text-failed text-xs mt-1">{pinnedErr}</p>}
             </div>
           </div>
 
@@ -157,7 +181,7 @@ export default function ScanView() {
           <div className="flex gap-3 items-center">
             <button
               onClick={start}
-              disabled={wallet.trim().length < 32 || running}
+              disabled={!formValid || running}
               className="bg-accent text-bg font-medium rounded-md px-5 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Start scan

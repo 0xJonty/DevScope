@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  addressError,
   api,
+  BASE58_ADDRESS,
   subscribeScanEvents,
   type EstimateMap,
   type QuotaMap,
@@ -30,10 +32,13 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
+  const mintErr = addressError(mint, "contract");
+  const formValid = mint.trim().length > 0 && !mintErr;
+
   // Pre-flight estimate vs remaining quota (same contract as the dev scan).
   useEffect(() => {
     const t = setTimeout(() => {
-      if (mint.length >= 32) {
+      if (BASE58_ADDRESS.test(mint.trim())) {
         api.tokenEstimate(mint).then((r) => {
           setEstimate(r.estimate);
           setQuota(r.quota);
@@ -84,6 +89,10 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
 
   const start = async () => {
     setError(null);
+    if (!formValid) {
+      setError(mintErr ?? "Enter a contract address first.");
+      return;
+    }
     setEvents([]);
     setResult(null);
     try {
@@ -117,8 +126,9 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
               onChange={(e) => setMint(e.target.value)}
               placeholder="token mint (base58)"
               spellCheck={false}
-              className="w-full bg-surface border border-line rounded-md px-3 py-2 font-mono text-sm placeholder:text-faint focus:outline-none focus:border-accent"
+              className={`w-full bg-surface border rounded-md px-3 py-2 font-mono text-sm placeholder:text-faint focus:outline-none ${mintErr ? "border-failed/60" : "border-line focus:border-accent"}`}
             />
+            {mintErr && <p className="text-failed text-xs mt-1">{mintErr}</p>}
           </div>
 
           {estimate && (
@@ -148,7 +158,7 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
           <div className="flex gap-3 items-center">
             <button
               onClick={start}
-              disabled={mint.trim().length < 32 || running}
+              disabled={!formValid || running}
               className="bg-accent text-bg font-medium rounded-md px-5 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Start token scan

@@ -9,6 +9,7 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
   const [sort, setSort] = useState<SortKey>("updatedAt");
   const [renaming, setRenaming] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
 
   const load = () => api.library().then(setEntries, () => setEntries([]));
   useEffect(() => {
@@ -24,7 +25,17 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
   }, [entries, search, sort]);
 
   const commitRename = async (wallet: string) => {
-    if (newName.trim()) await api.rename(wallet, newName.trim());
+    const name = newName.trim();
+    if (name.length > 60) {
+      setRenameError("Name must be 60 characters or fewer.");
+      return; // keep the input open so it can be fixed
+    }
+    try {
+      if (name) await api.rename(wallet, name);
+      setRenameError(null);
+    } catch (e) {
+      setRenameError(e instanceof Error ? e.message : String(e));
+    }
     setRenaming(null);
     setNewName("");
     load();
@@ -55,6 +66,8 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
           </select>
         </div>
       </header>
+
+      {renameError && <p className="text-failed text-xs">Rename failed: {renameError}</p>}
 
       {entries === null && <p className="text-faint text-sm">Loading…</p>}
       {entries?.length === 0 && (

@@ -8,7 +8,11 @@ import { computeFingerprint } from "./fingerprint.js";
 import { ScanPausedError, type Classification, type ScanCtx, type WindowToken } from "./types.js";
 
 export function classify(bonded: boolean, athUsd: number | null): Classification {
-  if (bonded) return "worked";
+  const worked =
+    bands.worked_mode === "ath_usd"
+      ? athUsd != null && athUsd >= bands.worked_min_ath_usd
+      : bonded;
+  if (worked) return "worked";
   if (athUsd != null && athUsd > bands.mid_min_ath_usd) return "mid";
   return "failed";
 }
