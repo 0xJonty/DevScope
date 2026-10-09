@@ -22,21 +22,39 @@ function Prose({ md }: { md: string }) {
   );
 }
 
-function ThesisGroup({ title, items }: { title: string; items: StructuredThesis[] }) {
+function ThesisGroup({
+  title,
+  items,
+  onVamp,
+}: {
+  title: string;
+  items: StructuredThesis[];
+  onVamp: (mint: string) => void;
+}) {
   if (items.length === 0) return null;
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-medium text-dim">{title}</h2>
       <div className="grid grid-cols-2 min-[1500px]:grid-cols-3 gap-3">
         {items.map((t) => (
-          <ThesisCard key={t.mint} t={t} />
+          <ThesisCard key={t.mint} t={t} onVamp={() => onVamp(t.mint)} />
         ))}
       </div>
     </section>
   );
 }
 
-export default function ProfileView({ wallet, back, rescan }: { wallet: string; back: () => void; rescan: () => void }) {
+export default function ProfileView({
+  wallet,
+  back,
+  rescan,
+  openVamp,
+}: {
+  wallet: string;
+  back: () => void;
+  rescan: () => void;
+  openVamp: (mint: string) => void;
+}) {
   const [profile, setProfile] = useState<StructuredProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,10 +173,10 @@ export default function ProfileView({ wallet, back, rescan }: { wallet: string; 
         </section>
       )}
 
-      <ThesisGroup title={`Career deploys — all-time tops (${career.length})`} items={career} />
-      <ThesisGroup title={`Bonded in window (${worked.length})`} items={worked} />
-      <ThesisGroup title={`Almost made it (${mids.length})`} items={mids} />
-      <ThesisGroup title={`Representative failures (${failures.length})`} items={failures} />
+      <ThesisGroup title={`Career deploys — all-time tops (${career.length})`} items={career} onVamp={openVamp} />
+      <ThesisGroup title={`Bonded in window (${worked.length})`} items={worked} onVamp={openVamp} />
+      <ThesisGroup title={`Almost made it (${mids.length})`} items={mids} onVamp={openVamp} />
+      <ThesisGroup title={`Representative failures (${failures.length})`} items={failures} onVamp={openVamp} />
 
       {profile.sections.questions && (
         <section className="border border-line rounded-lg px-5 py-4 space-y-2">

@@ -5,6 +5,7 @@ import LibraryView from "./views/LibraryView";
 import TokenLibraryView from "./views/TokenLibraryView";
 import ProfileView from "./views/ProfileView";
 import TokenView from "./views/TokenView";
+import DevTokenView from "./views/DevTokenView";
 import SettingsView from "./views/SettingsView";
 
 export type View =
@@ -14,6 +15,7 @@ export type View =
   | { name: "tokenLibrary" }
   | { name: "profile"; wallet: string }
   | { name: "token"; mint: string }
+  | { name: "devToken"; mint: string; wallet: string; autostartVamp: boolean }
   | { name: "settings" };
 
 const NAV: Array<{ key: View["name"]; label: string }> = [
@@ -45,7 +47,7 @@ export default function App() {
           {NAV.map((item) => {
             const active =
               view.name === item.key ||
-              (item.key === "library" && view.name === "profile") ||
+              (item.key === "library" && (view.name === "profile" || view.name === "devToken")) ||
               (item.key === "tokenLibrary" && view.name === "token");
             return (
               <button
@@ -67,10 +69,22 @@ export default function App() {
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
         {view.name === "tokenLibrary" && <TokenLibraryView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "profile" && (
-          <ProfileView wallet={view.wallet} back={() => setView({ name: "library" })} rescan={() => setView({ name: "scan" })} />
+          <ProfileView
+            wallet={view.wallet}
+            back={() => setView({ name: "library" })}
+            rescan={() => setView({ name: "scan" })}
+            openVamp={(mint) => setView({ name: "devToken", mint, wallet: view.wallet, autostartVamp: true })}
+          />
         )}
         {view.name === "token" && (
           <TokenView mint={view.mint} back={() => setView({ name: "tokenLibrary" })} rescan={() => setView({ name: "tokenScan" })} />
+        )}
+        {view.name === "devToken" && (
+          <DevTokenView
+            mint={view.mint}
+            autostartVamp={view.autostartVamp}
+            back={() => setView({ name: "profile", wallet: view.wallet })}
+          />
         )}
         {view.name === "settings" && <SettingsView />}
       </main>

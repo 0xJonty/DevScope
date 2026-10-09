@@ -14,6 +14,7 @@ Usage:
   npm run cli -- scan <wallet> [--name <alias>] [--window <n>] [--pin <mint,mint>] [--through <s1..s7>]
   npm run cli -- resume <scanId>
   npm run cli -- estimate <wallet> [--window <n>]
+  npm run cli -- vamp <mint>
   npm run cli -- quota
 
   --through s2   stop after S2 (M1 data-layer mode: enumerate + score, no AI)
@@ -113,6 +114,35 @@ async function main(): Promise<void> {
         console.log(`  ${p.padEnd(14)} ~${e.estimated}  (${e.note})`);
       }
       printQuota();
+      break;
+    }
+    case "vamp": {
+      if (!target) throw new Error("token mint required");
+      assertAuthMode();
+      const { createVampScan, estimateVampScanCost, getVampScan, startVampScan } = await import(
+        "./pipeline/vamp-scan.js"
+      );
+      console.log("Pre-flight quota estimate:");
+      for (const [p, e] of Object.entries(estimateVampScanCost())) {
+        console.log(`  ${p.padEnd(14)} ~${e.estimated}  (${e.note})`);
+      }
+      const vampId = createVampScan(target);
+      console.log(`Vamp scan ${vampId} created.\n`);
+      scanEvents.on(`scan:${vampId}`, (ev) => console.log(`[vamp] ${ev.message}`));
+      startVampScan(vampId);
+      await new Promise<void>((resolveDone) => {
+        const timer = setInterval(() => {
+          const s = getVampScan(vampId);
+          if (s.status === "done" || s.status === "failed" || s.status === "paused") {
+            clearInterval(timer);
+            resolveDone();
+          }
+        }, 1000);
+      });
+      const s = getVampScan(vampId);
+      console.log(`\nVamp scan ${vampId}: ${s.status}${s.statusReason ? ` — ${s.statusReason}` : ""}`);
+      printQuota();
+      process.exit(s.status === "failed" ? 1 : 0);
       break;
     }
     case "quota":

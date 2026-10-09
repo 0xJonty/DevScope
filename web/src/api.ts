@@ -56,6 +56,68 @@ export interface TokenScanInfo {
   name: string | null;
   ticker: string | null;
   imageUrl: string | null;
+  vampRequested: boolean | null;
+  vampScanId: string | null;
+}
+
+export interface VampScanInfo {
+  id: string;
+  mint: string;
+  triggerScanId: string | null;
+  status: "running" | "paused" | "failed" | "done";
+  statusReason: string | null;
+  startedAt: number;
+  finishedAt: number | null;
+  windowMinutes: number;
+  athFloorUsd: number;
+  candidatesTotal: number | null;
+  candidatesFiltered: number | null;
+  quotaSpent: Record<string, number> | null;
+}
+
+export interface VampCounterpart {
+  mint: string;
+  name: string;
+  relationship: "victim" | "vamper" | "pvp_rival";
+}
+
+export interface VampVerdictJson {
+  role?: "vamped_another" | "got_vamped" | "pvp_won" | "pvp_no_winner" | "no_vamp_found";
+  counterparts?: VampCounterpart[];
+  deciding_factors?: string[];
+  what_let_it_run?: string;
+  thesis?: string;
+  evidence?: ThesisEvidence[];
+  confidence?: string;
+  unknowns?: string;
+  generation_failed?: boolean;
+  error?: string;
+}
+
+export interface VampState {
+  scan: VampScanInfo | null;
+  verdict: VampVerdictJson | null;
+  promptVersion: string | null;
+}
+
+export interface DevTokenDetail {
+  mint: string;
+  name: string;
+  ticker: string;
+  description: string | null;
+  socials: { twitter?: string; telegram?: string; website?: string };
+  wallet: string;
+  walletName: string | null;
+  bonded: boolean;
+  athUsd: number | null;
+  athAt: number | null;
+  createdAt: number;
+  imageUrl: string | null;
+  classification: string;
+  curveStats: Record<string, unknown> | null;
+  replyCount: number | null;
+  promptVersion: string | null;
+  thesis: ThesisJson | null;
 }
 
 export interface TokenLibraryEntry {
@@ -187,12 +249,24 @@ export const api = {
     fetch(`/api/estimate?wallet=${encodeURIComponent(wallet)}&window=${windowN}`).then((r) =>
       json<{ estimate: EstimateMap | null; quota: QuotaMap }>(r)
     ),
-  createTokenScan: (mint: string) =>
+  createTokenScan: (mint: string, vamp = false) =>
     fetch("/api/token-scans", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mint }),
+      body: JSON.stringify({ mint, vamp }),
     }).then((r) => json<{ scanId: string; estimate: EstimateMap; quota: QuotaMap }>(r)),
+  createVampScan: (mint: string, triggerScanId?: string) =>
+    fetch("/api/vamp-scans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mint, triggerScanId }),
+    }).then((r) => json<{ scanId: string; estimate: EstimateMap; quota: QuotaMap }>(r)),
+  startVampScan: (id: string) => fetch(`/api/vamp-scans/${id}/start`, { method: "POST" }).then(json),
+  getVampScan: (id: string) => fetch(`/api/vamp-scans/${id}`).then((r) => json<VampScanInfo>(r)),
+  vampState: (mint: string) => fetch(`/api/vamp/${mint}`).then((r) => json<VampState>(r)),
+  vampEstimate: () =>
+    fetch("/api/vamp-scans/estimate").then((r) => json<{ estimate: EstimateMap; quota: QuotaMap }>(r)),
+  devToken: (mint: string) => fetch(`/api/dev-tokens/${mint}`).then((r) => json<DevTokenDetail>(r)),
   startTokenScan: (id: string) => fetch(`/api/token-scans/${id}/start`, { method: "POST" }).then(json),
   getTokenScan: (id: string) => fetch(`/api/token-scans/${id}`).then((r) => json<TokenScanInfo>(r)),
   listTokenScans: () => fetch("/api/token-scans").then((r) => json<TokenScanInfo[]>(r)),
@@ -227,7 +301,7 @@ export const api = {
 export function subscribeScanEvents(
   scanId: string,
   onEvent: (ev: ScanEvent) => void,
-  kind: "scans" | "token-scans" = "scans"
+  kind: "scans" | "token-scans" | "vamp-scans" = "scans"
 ): () => void {
   const source = new EventSource(`/api/${kind}/${scanId}/events`);
   source.onmessage = (e) => {

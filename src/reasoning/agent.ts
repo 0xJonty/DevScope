@@ -38,6 +38,10 @@ export interface AgentRunOptions {
    * inherited the user's global hooks, and a PreToolUse gate blocked Read
    * (observed live 2026-10-05). */
   imagePath?: string | null;
+  /** Multi-image attachment (vamp scans): each image rides as a base64 block
+   * preceded by a text label so the agent can tell candidates apart. Takes
+   * precedence over imagePath when set. */
+  images?: Array<{ path: string; label: string }>;
   onActivity?: (message: string) => void;
 }
 
@@ -72,14 +76,19 @@ type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
-async function buildPrompt(prompt: string, imagePath: string | null | undefined): Promise<string | AsyncIterable<SDKUserMessage>> {
-  if (!imagePath || !existsSync(imagePath)) return prompt;
-  const mediaType = IMAGE_MEDIA_TYPES[extname(imagePath).toLowerCase()] ?? "image/jpeg";
-  const data = await readFile(imagePath, "base64");
-  const content: ContentBlock[] = [
-    { type: "text", text: prompt },
-    { type: "image", source: { type: "base64", media_type: mediaType, data } },
-  ];
+async function buildPrompt(
+  prompt: string,
+  images: Array<{ path: string; label: string }>
+): Promise<string | AsyncIterable<SDKUserMessage>> {
+  const present = images.filter((i) => existsSync(i.path));
+  if (present.length === 0) return prompt;
+  const content: ContentBlock[] = [{ type: "text", text: prompt }];
+  for (const img of present) {
+    const mediaType = IMAGE_MEDIA_TYPES[extname(img.path).toLowerCase()] ?? "image/jpeg";
+    const data = await readFile(img.path, "base64");
+    if (present.length > 1) content.push({ type: "text", text: `[image: ${img.label}]` });
+    content.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+  }
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     yield {
       type: "user",
@@ -105,8 +114,12 @@ export async function runAgentJson<T>(
 ): Promise<T> {
   assertAuthMode();
 
-  if (opts.imagePath && !existsSync(opts.imagePath)) {
-    opts.onActivity?.(`image file missing at ${opts.imagePath} — running without vision`);
+  const images =
+    opts.images ?? (opts.imagePath ? [{ path: opts.imagePath, label: "token image" }] : []);
+  for (const img of images) {
+    if (!existsSync(img.path)) {
+      opts.onActivity?.(`image file missing at ${img.path} — attaching without it`);
+    }
   }
 
   const scrapling = resolveScraplingMcp(opts.onActivity);
@@ -115,7 +128,7 @@ export async function runAgentJson<T>(
   let resultText = "";
   try {
     for await (const message of query({
-      prompt: await buildPrompt(prompt, opts.imagePath),
+      prompt: await buildPrompt(prompt, images),
       options: {
         model: opts.model,
         maxTurns: opts.maxTurns,

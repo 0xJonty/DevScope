@@ -1,4 +1,5 @@
 import { fmtUsd, shortWallet, type StructuredThesis } from "../api";
+import { BatIcon } from "./VampPanel";
 
 export const CLASS_STYLES: Record<string, string> = {
   worked: "text-worked border-worked/40",
@@ -17,7 +18,9 @@ export function Chip({ text, className = "text-dim border-line" }: { text: strin
   return <span className={`text-xs px-2 py-0.5 rounded-full border ${className}`}>{text}</span>;
 }
 
-export default function ThesisCard({ t }: { t: StructuredThesis }) {
+/** `onVamp` (optional) renders the bat action — opens the token's page and
+ * starts a vamp scan (PLAN.md §7c). Profile view passes it; others don't. */
+export default function ThesisCard({ t, onVamp }: { t: StructuredThesis; onVamp?: () => void }) {
   const j = t.thesis;
   return (
     <article className="bg-surface border border-line rounded-lg p-4 flex flex-col">
@@ -76,13 +79,23 @@ export default function ThesisCard({ t }: { t: StructuredThesis }) {
         <p className="text-faint text-sm mt-3">No thesis for this token in the latest scan.</p>
       )}
 
-      <div className="flex gap-3 mt-auto pt-3 text-xs">
+      <div className="flex gap-3 mt-auto pt-3 text-xs items-center">
         <a href={`https://pump.fun/coin/${t.mint}`} target="_blank" rel="noreferrer" className="text-faint hover:text-accent">
           pump.fun ↗
         </a>
         <a href={`https://solscan.io/token/${t.mint}`} target="_blank" rel="noreferrer" className="text-faint hover:text-accent">
           solscan ↗
         </a>
+        {onVamp && (
+          <button
+            onClick={onVamp}
+            title="Vamp scan — who vamped whom in this launch window"
+            className="flex items-center gap-1 text-faint hover:text-accent"
+          >
+            <BatIcon className="w-3.5 h-3.5" />
+            vamp
+          </button>
+        )}
         <span className="text-faint font-mono ml-auto truncate">{shortWallet(t.mint)}</span>
       </div>
     </article>

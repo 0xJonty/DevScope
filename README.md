@@ -59,6 +59,7 @@ npm run cli -- scan <wallet> --name <alias>        # full scan S1→S7
 npm run cli -- scan <wallet> --through s2          # data layer only (no AI)
 npm run cli -- resume <scanId>                     # resume a paused scan
 npm run cli -- estimate <wallet>                   # pre-flight quota estimate
+npm run cli -- vamp <mint>                         # vamp scan: launch-window PvP analysis
 npm run cli -- quota                               # monthly ledger
 ```
 
@@ -74,6 +75,8 @@ npm run cli -- quota                               # monthly ledger
 
 For a single token instead: **Token Scan** tab → paste the contract address → one research scan (metadata, ATH, image, one Claude thesis). The result renders inline and lands in **Token Library**; a token that already has a thesis (from any scan) reuses it verbatim at zero Claude cost.
 
+**Vamp scan** (opt-in, 🦇): from a profile thesis card, the Token Library detail page, or the Token Scan "include vamp scan" flag. Enumerates every pump.fun deploy within ±5 min of the token's launch (1–2 Solana Tracker calls), filters by ATH floor, and asks Claude who vamped whom — and whether the fight was decided by ticker/name, fees, image, or finer token details.
+
 ## Repo map
 
 ```
@@ -85,7 +88,7 @@ src/server/       Fastify (localhost only) + SSE + static UI
 web/              React/Vite/Tailwind dark UI
 config/           bands.json, scan-defaults.json, providers.json, reasoning.json
 profiles/         *-PROFILE.md output (source of truth, gitignored)
-scripts/          smoke-test.ts
+scripts/          smoke-test.ts + verify-*.ts live regression checks
 ```
 
 ## Versioning & docs

@@ -18,6 +18,8 @@ const reasoningConfig = z
     synthesis_model: z.string(),
     max_turns_thesis: z.number(),
     max_turns_synthesis: z.number(),
+    vamp_model: z.string(),
+    max_turns_vamp: z.number(),
   })
   .parse(JSON.parse(readFileSync(resolve(config.root, "config/reasoning.json"), "utf8")));
 

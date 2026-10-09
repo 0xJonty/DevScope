@@ -63,7 +63,70 @@ export const tokenScans = sqliteTable("token_scans", {
   status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
   statusReason: text("status_reason"),
   quotaSpent: text("quota_spent", { mode: "json" }).$type<Record<string, number>>(),
+  /** "Include vamp scan" flag (0.10.0) — persisted so a resumed scan still chains it. */
+  vampRequested: integer("vamp_requested", { mode: "boolean" }),
+  /** Vamp scan chained after this token scan completed (null until then). */
+  vampScanId: text("vamp_scan_id"),
 });
+
+/** One shortlisted vamp candidate (snapshot stored on the scan row — vamp
+ * candidates deliberately never enter `tokens`, which would skew per-wallet
+ * stats for any deployer who happens to own a candidate). */
+export interface VampShortlistEntry {
+  mint: string;
+  name: string;
+  ticker: string;
+  description: string | null;
+  createdAt: number;
+  athUsd: number | null;
+  athAt: number | null;
+  bonded: boolean;
+  deployer: string;
+  sameDeployer: boolean;
+  cashback: boolean | null;
+  holderReward: boolean | null;
+  transferFeeBps: number | null;
+  replyCount: number | null;
+  imageUri: string | null;
+  imagePath: string | null;
+  score: number;
+}
+
+/** Vamp Scan runs (PLAN.md §7c) — opt-in PvP analysis around one token's
+ * launch window. The verdict lands in `vamp_verdicts` keyed (mint, scan id). */
+export const vampScans = sqliteTable("vamp_scans", {
+  id: text("id").primaryKey(),
+  mint: text("mint").notNull(),
+  /** Deployer-scan or token-scan id that spawned it (null = started from a token page). */
+  triggerScanId: text("trigger_scan_id"),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+  status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
+  statusReason: text("status_reason"),
+  windowMinutes: integer("window_minutes").notNull(),
+  athFloorUsd: real("ath_floor_usd").notNull(),
+  candidatesTotal: integer("candidates_total"),
+  candidatesFiltered: integer("candidates_filtered"),
+  /** V1 checkpoint: raw window enumeration (so a resume never re-spends the
+   * quota'd search). Lean rows — full metadata comes from the free V2 batch. */
+  windowTokens: text("window_tokens", { mode: "json" }).$type<
+    Array<{ mint: string; createdAt: number; deployer: string | null }>
+  >(),
+  shortlist: text("shortlist", { mode: "json" }).$type<VampShortlistEntry[]>(),
+  quotaSpent: text("quota_spent", { mode: "json" }).$type<Record<string, number>>(),
+});
+
+export const vampVerdicts = sqliteTable(
+  "vamp_verdicts",
+  {
+    mint: text("mint").notNull(),
+    vampScanId: text("vamp_scan_id").notNull(),
+    json: text("json", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    promptVersion: text("prompt_version").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.mint, t.vampScanId] })]
+);
 
 export const theses = sqliteTable(
   "theses",

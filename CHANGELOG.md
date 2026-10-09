@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-09 (Vamp Scan)
+
+### Added
+- **Vamp Scan** (PLAN.md §7c): opt-in PvP analysis around any scanned token's launch window — who vamped whom (vamping = launching a competing version of a running token's narrative to suck its volume) and what decided it (ticker/name, fees, image, finer token details, timing). Mini-pipeline, checkpointed on its own row: V1 window enumeration via Solana Tracker `/search` filter-only (`minCreatedAt`/`maxCreatedAt` + `market=pumpfun`, 1–2 quota'd calls, verified live — ~350 deploys per 10-min window) → V2 free pump.fun `/coins/mints` batch resolve with mayhem exclusion and **ATH-mc floor** (default $10k; current mc is useless, dead candidates sit at ~$0) → V3 deterministic similarity shortlist (text identity 0.5 / ATH magnitude 0.3 / launch proximity 0.2, deliberately loose so differently-named same-narrative deploys survive; cap 12, top 6 get images) → V4 one Layer B run (`vamp-v1.0.0`) with every image attached as a labeled vision block, light web use only. Output is evidence-gated and mechanically validated (counterparts must be shortlist mints; `no_vamp_found` ⟺ empty counterparts). Verified end-to-end live: 251-deploy window, 47 mayhem excluded, 10 past the floor, high-confidence standards-compliant verdict.
+- **Entry points** (all opt-in, never default): 🦇 button on profile thesis cards → new dev-scan token page (scoped under the deployer profile, NOT a Token Library entry) which auto-starts the scan on arrival; 🦇 panel on the Token Library detail page; "include vamp scan" flag on Token Scan (chains after the thesis, cost folded into the pre-flight estimate). `npm run cli -- vamp <mint>` for terminal runs.
+- New tables `vamp_scans` + `vamp_verdicts`, `token_scans.vamp_requested`/`vamp_scan_id` columns (migration 0003). `config/scan-defaults.json → vamp` block (window ±5 min, $10k ATH floor, shortlist cap 12, 6 images); `config/reasoning.json → vamp_model`/`max_turns_vamp`. Vamp candidates never enter the `tokens` table — the shortlist snapshot on the scan row is the whole record.
+- Multi-image vision support in the Layer B agent runner (`images: [{path, label}]` — labeled base64 blocks; thesis runs unchanged).
+- Live regression script `scripts/verify-vamp-window.ts <mint>` (V1–V3 only: 1–2 Solana Tracker calls, no Layer B, no DB writes).
+- §16 verified: Solana Tracker `/search` free-tier filter-only behavior; pump.fun fee flags `is_holder_reward`/`transfer_fee_bps` on every row; pump.fun global `sort=created_timestamp` offset-dies ≤5k rows (why the search endpoint is the enumerator). TODO-VERIFY remains: where creator-fee vs fee-share-target vs charity config lives (not in enumeration rows).
+
 ## [0.9.0] — 2026-10-09 (Token Scan + Token Library)
 
 ### Added

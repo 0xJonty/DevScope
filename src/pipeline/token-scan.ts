@@ -15,6 +15,7 @@ import { MayhemExcludedError, pumpfun } from "../providers/pumpfun.js";
 import { assertHeadroom, QuotaExceededError } from "../providers/quota.js";
 import { scanEvents } from "./events.js";
 import { RATE_LIMIT_RESUME_MS, scanQueue } from "./orchestrator.js";
+import { createVampScan, startVampScan } from "./vamp-scan.js";
 import { classify } from "./s2-score.js";
 import { enrichTokenRow } from "./s4-enrich.js";
 import { generateOrReuseThesis } from "./s5-thesis.js";
@@ -29,10 +30,18 @@ import { ScanPausedError, type ScanEvent } from "./types.js";
  * and an existing (mint, scanId) thesis short-circuits Layer B.
  */
 
-export function createTokenScan(mint: string): string {
+export function createTokenScan(mint: string, vampRequested = false): string {
   const id = randomUUID();
   db.insert(schema.tokenScans)
-    .values({ id, mint, startedAt: Date.now(), status: "paused", statusReason: "queued", quotaSpent: {} })
+    .values({
+      id,
+      mint,
+      startedAt: Date.now(),
+      status: "paused",
+      statusReason: "queued",
+      quotaSpent: {},
+      vampRequested,
+    })
     .run();
   return id;
 }
@@ -120,6 +129,17 @@ async function executeTokenScan(id: string): Promise<void> {
     }
 
     setStatus(id, "done");
+
+    // Chain the opt-in vamp scan (PLAN.md §7c) — its own scan id and SSE feed;
+    // the UI follows via vampScanId. Idempotent across resumes.
+    const fresh = getTokenScan(id);
+    if (fresh.vampRequested && !fresh.vampScanId) {
+      const vampId = createVampScan(scan.mint, id);
+      db.update(schema.tokenScans).set({ vampScanId: vampId }).where(eq(schema.tokenScans.id, id)).run();
+      emit({ type: "log", message: `Vamp scan requested — chained as ${vampId}.` });
+      startVampScan(vampId);
+    }
+
     emit({ type: "done", message: "Token scan complete." });
   } catch (err) {
     if (err instanceof MayhemExcludedError) {

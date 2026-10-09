@@ -8,11 +8,18 @@ import { db, schema } from "../db/index.js";
 import { getAllUsage } from "../providers/quota.js";
 import { createScan, estimateScanCost, requestPause, startScan } from "../pipeline/orchestrator.js";
 import { createTokenScan, estimateTokenScanCost, startTokenScan } from "../pipeline/token-scan.js";
+import {
+  createVampScan,
+  estimateVampScanCost,
+  getVampState,
+  startVampScan,
+} from "../pipeline/vamp-scan.js";
 import { scanEvents } from "../pipeline/events.js";
 import { classify } from "../pipeline/s2-score.js";
 import { STAGE_LABELS, STAGES } from "../pipeline/types.js";
 import { THESIS_PROMPT_VERSION } from "../reasoning/prompts/thesis.js";
 import { SYNTHESIS_PROMPT_VERSION } from "../reasoning/prompts/synthesis.js";
+import { VAMP_PROMPT_VERSION } from "../reasoning/prompts/vamp.js";
 import type { ScanEvent, StageState } from "../pipeline/types.js";
 
 const newScanBody = z.object({
@@ -22,7 +29,12 @@ const newScanBody = z.object({
   pinnedMints: z.array(z.string()).max(5).optional(),
 });
 
-const newTokenScanBody = z.object({ mint: z.string().min(32).max(50) });
+const newTokenScanBody = z.object({ mint: z.string().min(32).max(50), vamp: z.boolean().optional() });
+
+const newVampScanBody = z.object({
+  mint: z.string().min(32).max(50),
+  triggerScanId: z.string().nullish(),
+});
 
 const tokenImageUrl = (t: { imagePath: string | null; imageUri: string | null }): string | null =>
   t.imagePath ? `/images/${t.imagePath.split("/").pop()}` : t.imageUri;
@@ -107,8 +119,19 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const parsed = newTokenScanBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
     const mint = parsed.data.mint.trim();
-    const scanId = createTokenScan(mint);
-    return { scanId, estimate: estimateTokenScanCost(mint), quota: getAllUsage() };
+    const scanId = createTokenScan(mint, parsed.data.vamp ?? false);
+    const estimate = estimateTokenScanCost(mint);
+    if (parsed.data.vamp) {
+      // Fold the chained vamp scan's cost into the pre-flight numbers.
+      for (const [p, e] of Object.entries(estimateVampScanCost())) {
+        if (e.estimated === 0) continue;
+        const existing = estimate[p];
+        estimate[p] = existing
+          ? { estimated: existing.estimated + e.estimated, note: `${existing.note}; vamp: ${e.note}` }
+          : { estimated: e.estimated, note: `vamp: ${e.note}` };
+      }
+    }
+    return { scanId, estimate, quota: getAllUsage() };
   });
 
   app.post("/api/token-scans/:id/start", async (req) => {
@@ -146,6 +169,72 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/api/token-scans/:id/events", sseEvents);
+
+  // ── Vamp scans (opt-in PvP analysis, PLAN.md §7c) ─────────────────────
+  app.post("/api/vamp-scans", async (req, reply) => {
+    const parsed = newVampScanBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    const mint = parsed.data.mint.trim();
+    const scanId = createVampScan(mint, parsed.data.triggerScanId ?? null);
+    return { scanId, estimate: estimateVampScanCost(), quota: getAllUsage() };
+  });
+
+  app.post("/api/vamp-scans/:id/start", async (req) => {
+    startVampScan((req.params as { id: string }).id);
+    return { ok: true };
+  });
+
+  app.get("/api/vamp-scans/estimate", async () => ({ estimate: estimateVampScanCost(), quota: getAllUsage() }));
+
+  app.get("/api/vamp-scans/:id", async (req, reply) => {
+    const scan = db
+      .select()
+      .from(schema.vampScans)
+      .where(eq(schema.vampScans.id, (req.params as { id: string }).id))
+      .get();
+    if (!scan) return reply.code(404).send({ error: "vamp scan not found" });
+    return scan;
+  });
+
+  app.get("/api/vamp-scans/:id/events", sseEvents);
+
+  /** Latest vamp scan + verdict for a mint — token pages render this. */
+  app.get("/api/vamp/:mint", async (req) => getVampState((req.params as { mint: string }).mint));
+
+  // ── Dev-scan token page (bat button target, PLAN.md §10) ─────────────
+  // Token data + latest thesis for a dossier token, scoped under its
+  // deployer profile — deliberately NOT a Token Library entry.
+  app.get("/api/dev-tokens/:mint", async (req, reply) => {
+    const mint = (req.params as { mint: string }).mint;
+    const t = db.select().from(schema.tokens).where(eq(schema.tokens.mint, mint)).get();
+    if (!t) return reply.code(404).send({ error: "token not cached" });
+    const d = db.select().from(schema.deployers).where(eq(schema.deployers.wallet, t.wallet)).get();
+    const thesisRow = db
+      .select()
+      .from(schema.theses)
+      .where(eq(schema.theses.mint, mint))
+      .all()
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    return {
+      mint,
+      name: t.name,
+      ticker: t.ticker,
+      description: t.description,
+      socials: t.socials ?? {},
+      wallet: t.wallet,
+      walletName: d?.name ?? null,
+      bonded: t.bonded,
+      athUsd: t.athUsd,
+      athAt: t.athAt,
+      createdAt: t.createdAt,
+      imageUrl: tokenImageUrl(t),
+      classification: classify(t.bonded, t.athUsd),
+      curveStats: t.curveStats ?? null,
+      replyCount: t.replyCount,
+      promptVersion: thesisRow?.promptVersion ?? null,
+      thesis: thesisRow?.json ?? null,
+    };
+  });
 
   // ── Token library ──────────────────────────────────────────────────────
   // Only tokens researched via Token Scan appear here (latest done scan per
@@ -357,7 +446,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     authMode: config.authMode,
     scanDefaults,
     bands: { bands_version: bands.bands_version, mid_min_ath_usd: bands.mid_min_ath_usd },
-    promptVersions: { thesis: THESIS_PROMPT_VERSION, synthesis: SYNTHESIS_PROMPT_VERSION },
+    promptVersions: { thesis: THESIS_PROMPT_VERSION, synthesis: SYNTHESIS_PROMPT_VERSION, vamp: VAMP_PROMPT_VERSION },
     quota: getAllUsage(),
   }));
 

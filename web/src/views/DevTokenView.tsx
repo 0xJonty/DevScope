@@ -1,15 +1,29 @@
 import { useEffect, useState } from "react";
-import { api, fmtUsd, shortWallet, type TokenDetail } from "../api";
+import { api, fmtUsd, shortWallet, type DevTokenDetail } from "../api";
 import ThesisCard from "../components/ThesisCard";
 import VampPanel from "../components/VampPanel";
 
-export default function TokenView({ mint, back, rescan }: { mint: string; back: () => void; rescan: () => void }) {
-  const [token, setToken] = useState<TokenDetail | null>(null);
+/**
+ * Dev-scan token page (PLAN.md §10) — the bat button's landing page for a
+ * deployer-dossier token. Shows the token + its dev-scan thesis and hosts the
+ * vamp scan. Deliberately NOT a Token Library entry: library scoping stays
+ * untouched, this page lives under the deployer profile.
+ */
+export default function DevTokenView({
+  mint,
+  autostartVamp,
+  back,
+}: {
+  mint: string;
+  autostartVamp: boolean;
+  back: () => void;
+}) {
+  const [token, setToken] = useState<DevTokenDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    api.tokenDetail(mint).then(setToken, (e) => setError(String(e)));
+    api.devToken(mint).then(setToken, (e) => setError(String(e)));
   }, [mint]);
 
   if (error) return <p className="text-failed text-sm">{error}</p>;
@@ -27,18 +41,15 @@ export default function TokenView({ mint, back, rescan }: { mint: string; back: 
 
   return (
     <div className="space-y-6 pb-16 max-w-3xl">
-      <header className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <button onClick={back} className="text-dim hover:text-ink text-sm shrink-0">← Token Library</button>
-          {token.imageUrl && (
-            <img src={token.imageUrl} alt="" className="w-9 h-9 rounded-md object-cover border border-line shrink-0" />
-          )}
-          <h1 className="text-lg font-semibold tracking-tight truncate">{token.name}</h1>
-          <span className="text-dim text-sm shrink-0">${token.ticker}</span>
-        </div>
-        <button onClick={rescan} className="border border-line rounded-md px-4 py-1.5 text-sm hover:border-accent shrink-0">
-          Rescan token
+      <header className="flex items-center gap-4 min-w-0">
+        <button onClick={back} className="text-dim hover:text-ink text-sm shrink-0">
+          ← {token.walletName ?? shortWallet(token.wallet)}
         </button>
+        {token.imageUrl && (
+          <img src={token.imageUrl} alt="" className="w-9 h-9 rounded-md object-cover border border-line shrink-0" />
+        )}
+        <h1 className="text-lg font-semibold tracking-tight truncate">{token.name}</h1>
+        <span className="text-dim text-sm shrink-0">${token.ticker}</span>
       </header>
 
       <div className="flex items-center gap-2 text-xs">
@@ -74,8 +85,8 @@ export default function TokenView({ mint, back, rescan }: { mint: string; back: 
             <div className="text-ink mt-0.5 font-mono">{shortWallet(token.wallet)}</div>
           </div>
           <div>
-            <div className="text-faint">Scanned</div>
-            <div className="text-ink mt-0.5">{new Date(token.scannedAt).toLocaleDateString()}</div>
+            <div className="text-faint">Class</div>
+            <div className="text-ink mt-0.5">{token.classification}</div>
           </div>
         </div>
         {token.description && <p className="text-dim text-sm pt-1">{token.description}</p>}
@@ -90,6 +101,8 @@ export default function TokenView({ mint, back, rescan }: { mint: string; back: 
         )}
       </section>
 
+      <VampPanel mint={token.mint} autostart={autostartVamp} />
+
       <ThesisCard
         t={{
           mint: token.mint,
@@ -100,12 +113,10 @@ export default function TokenView({ mint, back, rescan }: { mint: string; back: 
           createdAt: token.createdAt,
           imageUrl: token.imageUrl,
           classification: token.classification,
-          reason: "token-scan",
+          reason: "dev-scan dossier",
           thesis: token.thesis,
         }}
       />
-
-      <VampPanel mint={token.mint} />
     </div>
   );
 }

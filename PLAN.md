@@ -13,6 +13,8 @@ A local platform giving a pump.fun deployer an edge via AI-reasoned intelligence
 
 Added 0.9.0 — **Token Scan**: given a single contract address, run one research scan producing the same per-token thesis the deployer pipeline generates (§7b). Results live in their own *Token Library*, fully scoped apart from deployer profiles.
 
+Added 0.10.0 — **Vamp Scan**: opt-in PvP analysis around any scanned token's launch window — who vamped whom, and what decided it (§7c).
+
 v1 is the foundation. Later features (live launch alerts, narrative-meta scans, wallet clustering, self post-mortems) consume the same data layer and profile store. Nothing in v1 may assume it is the only feature.
 
 ---
@@ -171,7 +173,24 @@ A mini-pipeline over the same primitives as §7, run as one queued job (shares t
 3. **Enrichment** — S4's per-token enrichment: image download (vision input), curve stats.
 4. **Thesis (Layer B)** — S5's generator with `selection_reason: "token-scan"` and the standard classification bands. The re-scan rule applies: a prior successful thesis for the mint (from any scan) is copied verbatim — already-studied tokens cost zero Layer B.
 
-State lives in `token_scans` (§9.1); the thesis lands in `theses` keyed `(mint, token_scan_id)`, so deployer-scan and token-scan results stay scoped by scan id with no overlap. Every step is idempotent — a paused/failed scan resumes by re-running. Pause/auto-resume semantics on Claude usage limits match §8.
+State lives in `token_scans` (§9.1); the thesis lands in `theses` keyed `(mint, token_scan_id)`, so deployer-scan and token-scan results stay scoped by scan id with no overlap. Every step is idempotent — a paused/failed scan resumes by re-running. Pause/auto-resume semantics on Claude usage limits match §8. An optional `vamp` flag chains a Vamp Scan (§7c) after the thesis.
+
+---
+
+## 7c. Pipeline — Vamp Scan (added 0.10.0)
+
+**Input:** one already-scanned mint. **Always opt-in** (bat button / token-scan flag) — never runs by default; identification is quota- and Layer-B-costly relative to its frequency of being needed.
+
+Vamping = launching a competing version of a running token's narrative to suck its volume; the winner's edge is often a better ticker/name (spelling, canonical phrasing), fee configuration (creator fees vs holder rewards vs charity vs fee share), image, or finer token details. The scan answers: who vamped whom in this launch window, and what decided it.
+
+Mini-pipeline (one queued job; every step checkpointed on the `vamp_scans` row):
+
+1. **V1 — Window enumerate (quota'd).** Solana Tracker `/search` filter-only: every pump.fun deploy within ±`window_minutes` (default 5, config `scan-defaults.json → vamp`) of the scanned token's launch. ~350 deploys / 10 min observed; 1–2 calls (500-row pages). Checkpointed in `window_tokens`, so a resume never re-spends the search.
+2. **V2 — Resolve + filter (free).** One pump.fun `POST /coins/mints` batch resolves all candidates: full metadata, `ath_market_cap`, fee flags. Mayhem rows dropped (boundary policy), then **ATH-mc floor** (default $10k — current mc is useless; every dead candidate sits at ~$0). Candidates deliberately **never enter the `tokens` table** — they'd skew per-wallet stats for any deployer who happens to own one; the shortlist snapshot on the scan row is the whole record.
+3. **V3 — Similarity shortlist (Layer A).** Rank survivors: text identity (ticker/name edit distance + word overlap, cross-field name↔ticker) 0.5, ATH magnitude 0.3, launch proximity 0.2 — deliberately loose so differently-named same-narrative deploys survive on ATH + proximity alone. Cap `shortlist_cap` (12); top `image_candidates` (6) get image downloads. No pHash — V4's vision does the visual comparison better.
+4. **V4 — Verdict (Layer B, 1 run).** Prompt `vamp-v*` with the scanned token (+ prior thesis as context) and the shortlist dossier; all images attached as labeled vision blocks. Light web use only (narrative-source confirmation). Output (validated; counterpart mints must come from the shortlist, role/counterpart consistency enforced mechanically): `role` (`vamped_another | got_vamped | pvp_won | pvp_no_winner | no_vamp_found`), `counterparts`, `deciding_factors` (`ticker_name | fees | image | token_details | timing`), `what_let_it_run`, thesis, evidence, confidence, unknowns. Evidence-gated: no competing deploy ⇒ `no_vamp_found` with empty counterparts, never "this wasn't a vamp" prose.
+
+Verdict lands in `vamp_verdicts` keyed `(mint, vamp_scan_id)`. Entry points: 🦇 on dev-scan thesis cards (→ dev-scan token page, scoped under the profile — NOT a Token Library entry), 🦇 on the Token Library detail page, and the token-scan `vamp` flag. Typical cost: 1–2 Solana Tracker calls + 1 free pump.fun batch + 1 Layer B run. Vamp verdicts feeding S6 profile synthesis ("serial vamper") is a §15 future hook.
 
 ---
 
@@ -191,7 +210,9 @@ State lives in `token_scans` (§9.1); the thesis lands in `theses` keyed `(mint,
 - `deployers(wallet PK, name, created_at, last_scanned_at, lifetime_deploys, lifetime_best_ath_usd, lifetime_best_mint, linked_wallets JSON)`
 - `tokens(mint PK, wallet FK, name, ticker, description, image_path, socials JSON, created_at, bonded, ath_usd, ath_at, ath_source, curve_stats JSON, fetched_at)`
 - `scans(id PK, wallet, started_at, finished_at, status, window_n, window_from, window_to, bands_version, quota_spent JSON, stage_state JSON)`
-- `token_scans(id PK, mint, started_at, finished_at, status, status_reason, quota_spent JSON)` — Token Scan runs (§7b)
+- `token_scans(id PK, mint, started_at, finished_at, status, status_reason, quota_spent JSON, vamp_requested, vamp_scan_id)` — Token Scan runs (§7b)
+- `vamp_scans(id PK, mint, trigger_scan_id, started_at, finished_at, status, status_reason, window_minutes, ath_floor_usd, candidates_total, candidates_filtered, window_tokens JSON, shortlist JSON, quota_spent JSON)` — Vamp Scan runs (§7c)
+- `vamp_verdicts(mint, vamp_scan_id, json, prompt_version)` — PK (mint, vamp_scan_id)
 - `theses(mint, scan_id, json, prompt_version)` — scan_id is a deployer-scan OR token-scan id
 - `profiles(wallet PK, file_path, updated_at, verdict_snippet)`
 - `provider_usage(provider, month, calls_used, soft_limit)`
@@ -228,9 +249,10 @@ Markdown file is source of truth; DB indexes it. Renaming a deployer renames the
 Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast grey text, zero decorative color, generous spacing, system/Inter type.
 
 1. **Dev Scan** (renamed from Scan, 0.9.0) — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
-2. **Token Scan** (added 0.9.0) — contract-address input, pre-flight estimate, start → live feed (SSE), finished thesis rendered inline with a jump to the Token Library.
+2. **Token Scan** (added 0.9.0) — contract-address input, pre-flight estimate, start → live feed (SSE), finished thesis rendered inline with a jump to the Token Library. "Include vamp scan" flag (0.10.0) chains §7c after the thesis and folds its cost into the pre-flight estimate.
 3. **Dev Library** (renamed from Library, 0.9.0) — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline. Deployer profiles only — token-scan results never appear here.
-4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card). Individually scanned tokens only — deployer-scan dossiers never appear here.
+4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card, vamp panel with 🦇 start button). Individually scanned tokens only — deployer-scan dossiers never appear here.
+4b. **Dev-scan token page** (added 0.10.0) — 🦇 on a profile thesis card lands here and auto-starts the vamp scan (the button press is the consent; a plain page open never starts one). Token header + dev-scan thesis + vamp panel, back-link to the profile. Scoped under the deployer profile — not a Token Library entry.
 5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
 6. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
 
@@ -286,6 +308,7 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - Wallet clustering (`linked_wallets`) once fee-sharing attribution matters.
 - j7 integration (pre-set image-gen prompts informed by profile insights) — profiles are machine-readable for this.
 - Multi-launchpad coverage (noted 2026-10-05: deployers also launch on Stonk etc., invisible to pump.fun-only enumeration) — Solana Tracker's `/deployer/{wallet}` already accepts a `launchpad` param, so this slots behind the existing `DataProvider` interface.
+- Vamp verdicts feeding S6 profile synthesis ("serial vamper — N of M top deploys vamped running tokens") — decided 2026-10-09: token-page-only in v1; re-scan synthesis later gains `vamp_verdicts` as input. Cross-launchpad vamp candidates are the same quota question as multi-launchpad coverage above.
 
 ---
 
@@ -301,3 +324,6 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - [x] `sort=ath_market_cap&order=DESC` works with `creator=` on `/coins` (verified live 2026-10-05) — one free call returns a wallet's all-time top deploys by ATH. Used for lifetime best + S3 auto-pins. `sort=market_cap` and `sort=last_trade_timestamp` also work; `sort=usd_market_cap` is a 400.
 - [x] Mayhem-mode marker (verified live 2026-10-07): mayhem launches carry `mayhem_state` ∈ `'active' | 'paused' | 'completed'` in `/coins` enumeration rows; the field is **absent** on normal coins (70/70 top-ATH sample). `boost_mode` is a different feature (SOL-burn boost) — not a mayhem signal. No per-coin `GET /coins/{mint}` route exists on v3 (404), and `searchTerm` is fuzzy-only. Filter: drop any row where `mayhem_state` is present. Re-verified 2026-10-09: heuristic still discriminates — fresh global sample 56/70 absent (14 live mayhem), three known deployers 50/50 absent each; one all-mayhem wallet observed with 70/70 present including `'completed'` on week-old coins, so `completed` is a real historical mayhem marker, not a backfill artifact.
 - [x] pump.fun single-coin lookup (verified live 2026-10-09, for Token Scan): `POST {base}/coins/mints` with JSON body `{"mints":[...]}` (≤500 mints, plain-array body is a 400) returns an array of full coin objects in the **same shape as `/coins` enumeration rows** (incl. `ath_market_cap`, `complete`, `is_cashback_enabled`, `mayhem_state` when mayhem). Keyless. Unknown mints are simply omitted from the response.
+- [x] Solana Tracker `/search` (verified live 2026-10-09, for Vamp Scan): works **filter-only (no `query`) on the free tier**; `minCreatedAt`/`maxCreatedAt` (unix ms) reach arbitrary history; `market=pumpfun` restricts cleanly; `limit` max 500/page with `page` pagination + `hasMore`; rows carry mint/name/symbol/deployer/createdAt (+ current `marketCapUsd` — useless as a filter, dead tokens sit at ~$0; ATH comes from the free pump.fun batch instead). A 10-min global window = 347 pump.fun deploys, one page. Response may include up to 5 curated/promoted rows outside the window — client re-filters by bounds.
+- [x] pump.fun global `sort=created_timestamp` (probed 2026-10-09): works but offset paging dies between 1,000–5,000 rows (~1–3h of history at ~25 deploys/min) — unusable for historical windows; Solana Tracker `/search` is the vamp-scan enumerator.
+- [x] pump.fun fee-config flags (verified live 2026-10-09): every `/coins` row carries `is_holder_reward` and `transfer_fee_bps` alongside `is_cashback_enabled`. TODO-VERIFY: where creator-fee vs fee-share-target (wallet/X/github) vs charity config lives — not in enumeration rows; likely the coin page or metadata JSON (vamp V4 can Scrapling the coin page if it ever matters).

@@ -16,8 +16,14 @@ import {
  *   GET /tokens/{mint}          — token detail
  *   GET /tokens/{mint}/ath      — { highest_price, highest_market_cap, timestamp }
  *   GET /deployer/{wallet}      — tokens by deployer (failover enumeration)
+ *   GET /search                 — filter search (vamp-scan window enumeration)
  * TODO-VERIFY (needs live key): auth header name is assumed `x-api-key` per
  * docs convention; OpenAPI names the scheme "apiKey". Confirm with smoke test.
+ * VERIFIED LIVE 2026-10-09: `/search` works filter-only (no `query`) on the
+ * free tier — `minCreatedAt`/`maxCreatedAt` (unix ms) reach arbitrary history,
+ * `market=pumpfun` restricts cleanly, `limit` max 500 per page with
+ * page-number pagination (`hasMore` flags truncation). A 10-minute global
+ * window returned 347 pump.fun deploys in one page.
  */
 
 const deployerPageSchema = z.looseObject({
@@ -49,6 +55,31 @@ const tokenDetailSchema = z.looseObject({
   }),
   pools: z.array(z.looseObject({ marketCap: z.looseObject({ usd: z.number().nullish() }).nullish() })).nullish(),
 });
+
+const searchPageSchema = z.looseObject({
+  status: z.string(),
+  data: z.array(
+    z.looseObject({
+      mint: z.string().min(32),
+      name: z.string().nullish(),
+      symbol: z.string().nullish(),
+      deployer: z.string().nullish(),
+      createdAt: z.number(),
+      market: z.string().nullish(),
+    })
+  ),
+  hasMore: z.boolean().nullish(),
+});
+
+/** One pump.fun deploy found by the vamp-scan window search (lean on purpose —
+ * full metadata + ATH come from the free pump.fun batch lookup afterwards). */
+export interface WindowToken {
+  mint: string;
+  name: string | null;
+  ticker: string | null;
+  deployer: string | null;
+  createdAt: number;
+}
 
 function headers(): Record<string, string> {
   return { "x-api-key": requireEnv("SOLANA_TRACKER_API_KEY") };
@@ -129,3 +160,43 @@ export const solanatracker: DataProvider = {
     };
   },
 };
+
+/**
+ * Vamp-scan window enumeration (verified live 2026-10-09): every pump.fun
+ * deploy created inside [fromMs, toMs]. Filter-only `/search` with
+ * `market=pumpfun` + `minCreatedAt`/`maxCreatedAt`; 500-row pages. Quota'd —
+ * callers assertHeadroom first and record `calls` against their scan.
+ * `maxPages` caps runaway windows (3 pages = 1,500 deploys ≫ any ±5min
+ * window at the observed ~35 deploys/min global rate).
+ */
+export async function searchWindowTokens(
+  fromMs: number,
+  toMs: number,
+  maxPages = 3
+): Promise<{ tokens: WindowToken[]; calls: number }> {
+  const tokens: WindowToken[] = [];
+  let calls = 0;
+  for (let page = 1; page <= maxPages; page++) {
+    const url =
+      `${base()}/search?market=pumpfun&minCreatedAt=${fromMs}&maxCreatedAt=${toMs}` +
+      `&sortBy=createdAt&sortOrder=asc&limit=500&page=${page}`;
+    const raw = await providerFetch("solanatracker", url, { headers: headers() });
+    calls++;
+    const parsed = searchPageSchema.safeParse(raw);
+    if (!parsed.success) throw new SchemaValidationError("solanatracker", parsed.error.message.slice(0, 500));
+    for (const row of parsed.data.data) {
+      // The window bounds are the contract — drop anything the API lets slip
+      // (curated/promoted rows can ride along on search responses).
+      if (row.createdAt < fromMs || row.createdAt > toMs) continue;
+      tokens.push({
+        mint: row.mint,
+        name: row.name ?? null,
+        ticker: row.symbol ?? null,
+        deployer: row.deployer ?? null,
+        createdAt: row.createdAt,
+      });
+    }
+    if (!parsed.data.hasMore) break;
+  }
+  return { tokens, calls };
+}

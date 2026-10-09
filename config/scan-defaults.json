@@ -1,5 +1,5 @@
 {
-  "comment": "Deployer Scan defaults (PLAN.md §7). Per-scan overrides allowed from UI/CLI.",
+  "comment": "Deployer Scan defaults (PLAN.md §7) + Vamp Scan defaults (§7c). Per-scan overrides allowed from UI/CLI.",
   "window_n": 300,
   "window_max": 500,
   "dossier": {
@@ -11,5 +11,11 @@
     "cap_absolute": 25,
     "lifetime_top_k": 3
   },
-  "min_history_warn": 10
+  "min_history_warn": 10,
+  "vamp": {
+    "window_minutes": 5,
+    "ath_floor_usd": 10000,
+    "shortlist_cap": 12,
+    "image_candidates": 6
+  }
 }

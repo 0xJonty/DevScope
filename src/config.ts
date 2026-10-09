@@ -33,6 +33,12 @@ const scanDefaultsSchema = z.object({
     lifetime_top_k: z.number(),
   }),
   min_history_warn: z.number(),
+  vamp: z.object({
+    window_minutes: z.number(),
+    ath_floor_usd: z.number(),
+    shortlist_cap: z.number(),
+    image_candidates: z.number(),
+  }),
 });
 
 const providersSchema = z.object({

@@ -5,6 +5,7 @@ import fastifyStatic from "@fastify/static";
 import { assertAuthMode, config } from "../config.js";
 import { recoverInterruptedScans } from "../pipeline/orchestrator.js";
 import { recoverInterruptedTokenScans } from "../pipeline/token-scan.js";
+import { recoverInterruptedVampScans } from "../pipeline/vamp-scan.js";
 import { registerApiRoutes } from "./routes.js";
 
 const app = Fastify({ logger: { level: "info" } });
@@ -13,6 +14,7 @@ const app = Fastify({ logger: { level: "info" } });
 assertAuthMode();
 recoverInterruptedScans();
 recoverInterruptedTokenScans();
+recoverInterruptedVampScans();
 
 const webDist = join(config.root, "web", "dist");
 if (existsSync(webDist)) {

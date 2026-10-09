@@ -10,6 +10,7 @@ import {
 } from "../api";
 import QuotaMeters from "../components/QuotaMeters";
 import ThesisCard from "../components/ThesisCard";
+import VampPanel, { BatIcon } from "../components/VampPanel";
 
 const STATUS_STYLES: Record<string, string> = {
   done: "text-worked border-worked/40",
@@ -20,6 +21,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function TokenScanView({ openToken }: { openToken: (mint: string) => void }) {
   const [mint, setMint] = useState("");
+  const [includeVamp, setIncludeVamp] = useState(false);
   const [estimate, setEstimate] = useState<EstimateMap | null>(null);
   const [quota, setQuota] = useState<QuotaMap | null>(null);
   const [scan, setScan] = useState<TokenScanInfo | null>(null);
@@ -85,7 +87,7 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
     setEvents([]);
     setResult(null);
     try {
-      const res = await api.createTokenScan(mint.trim());
+      const res = await api.createTokenScan(mint.trim(), includeVamp);
       await api.startTokenScan(res.scanId);
       refreshScan(res.scanId);
     } catch (err) {
@@ -131,6 +133,17 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
               ))}
             </div>
           )}
+
+          <label className="flex items-center gap-2 text-sm text-dim cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={includeVamp}
+              onChange={(e) => setIncludeVamp(e.target.checked)}
+              className="accent-[#e0524f]"
+            />
+            <BatIcon className="w-4 h-4" />
+            Include vamp scan (who vamped whom in the launch window — ~2 extra Solana Tracker calls + 1 Claude run)
+          </label>
 
           <div className="flex gap-3 items-center">
             <button
@@ -207,6 +220,7 @@ export default function TokenScanView({ openToken }: { openToken: (mint: string)
                   thesis: result.thesis,
                 }}
               />
+              {scan.vampScanId && <VampPanel mint={result.mint} />}
             </div>
           )}
         </section>

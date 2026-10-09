@@ -1,6 +1,6 @@
 # CLAUDE.md — DevScope
 
-Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 features: Dev Scan (deployer profiling, S1–S7) + Token Scan (single-contract thesis, 0.9.0).
+Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 features: Dev Scan (deployer profiling, S1–S7) + Token Scan (single-contract thesis, 0.9.0) + Vamp Scan (opt-in launch-window PvP analysis, 0.10.0).
 **`PLAN.md` is the authoritative spec — read it before architectural work. This file governs how you work in this repo.**
 
 ## Project snapshot
@@ -57,10 +57,11 @@ Built-in `cc-plugin-*` plugins need no special handling.
 - Layer B (Agent SDK) calls MUST set `settingSources: []` — SDK sessions otherwise inherit user-level hooks/settings (a global PreToolUse hook blocked agents' Read calls). Never have agents Read local files; attach them as inline base64 content blocks (see `src/reasoning/agent.ts`).
 - `settingSources: []` also strips user-level MCP servers, so any MCP an agent needs must be passed explicitly via the `mcpServers` query option. Link fetching uses the Scrapling MCP (`SCRAPLING_MCP_COMMAND` in `.env`) — the SDK's built-in WebFetch is a plain bot fetch that x.com answers with HTTP 402 and Instagram/protected sites block.
 - Cheap pipeline testing: `npm run cli -- scan <wallet> --through s2|s4` runs stages without Layer B cost; one-off tsx scripts must live inside the repo (module resolution fails from /tmp).
-- Live regression checks: `npx tsx scripts/verify-mayhem-filter.ts <creator>` (free) after touching provider schemas/filters; `scripts/verify-scrapling-agent.ts` (one small Layer B call) after touching agent tooling. Fixture wallets are passed as args — never committed.
+- Live regression checks: `npx tsx scripts/verify-mayhem-filter.ts <creator>` (free) after touching provider schemas/filters; `scripts/verify-scrapling-agent.ts` (one small Layer B call) after touching agent tooling; `scripts/verify-vamp-window.ts <mint>` (1–2 Solana Tracker calls, no Layer B) after touching the search client or vamp similarity scorer. Fixture wallets/mints are passed as args — never committed.
 - Policy exclusions (e.g. mayhem-mode tokens) filter at the provider boundary — excluded rows never enter the DB; S1 purges stale cached rows and reports exclusions in the scan feed.
 - Stop the dev server with `kill $(lsof -ti:5717)` — `pkill -f` matches the shell wrapper and kills itself (exit 144).
-- Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint. The Token Scan mini-pipeline (PLAN.md §7b) follows the same rule via idempotent steps, and shares S2's ATH rule, S4's enrichment, and S5's thesis generator (`generateOrReuseThesis`) — change those in one place only.
+- Pipeline stages (S1–S7) are individually resumable; never write a stage that can't checkpoint. The Token Scan mini-pipeline (PLAN.md §7b) follows the same rule via idempotent steps, and shares S2's ATH rule, S4's enrichment, and S5's thesis generator (`generateOrReuseThesis`) — change those in one place only. The Vamp Scan (§7c) checkpoints on its own row (`window_tokens`/`shortlist` columns) so a resume never re-spends the quota'd search.
+- Vamp candidates NEVER enter the `tokens` table — they'd skew per-wallet stats for any deployer who owns one. The shortlist JSON on `vamp_scans` is the whole record. Vamp scans are always opt-in (🦇 button / token-scan flag) — never run one by default.
 - Validate every external response (providers, agent outputs) against schemas; fail loud, never silently degrade data.
 - Reasoning prompts live in `/src/reasoning/prompts/` as versioned files — treat prompt edits like code changes (commit, version, changelog if behavior shifts).
 - Reasoning prompt standards (owner-set, keep on every edit): study-not-trade framing (never "fade X"-style trader phrasing), no fluff, no fingerprint-stat recaps in prose sections, cross-cutting patterns stated once in `deployer_patterns_md`, ATH-centric performance judgment (full retrace is the default outcome — never narrate retrace/drawdown/longevity as findings; time-to-ATH only as a buying-arrival signal), positive assertions (state what a deploy IS — no elimination framing or self-contradiction; competing reads go to `unknowns`). S5 soft-lints fresh theses for drift against these (flag in feed, never fails).

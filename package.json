@@ -1,6 +1,6 @@
 {
   "name": "devscope",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "DevScope — AI-reasoned intelligence on pump.fun deployers (v1: Deployer Scan)",
   "type": "module",

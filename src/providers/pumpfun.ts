@@ -48,7 +48,14 @@ const coinSchema = z.object({
   reply_count: z.number().nullish(),
   pool_address: z.string().nullish(),
   mayhem_state: z.string().nullish(),
+  // Fee-config flags (verified live 2026-10-09, present on every /coins row):
+  // holder rewards + token-2022 transfer fee. Creator-fee vs fee-share-to-
+  // wallet/X/github vs charity is NOT in these rows (§16 TODO-VERIFY).
+  is_holder_reward: z.boolean().nullish(),
+  transfer_fee_bps: z.number().nullish(),
 });
+
+export type PumpfunCoin = z.infer<typeof coinSchema>;
 
 /** Mints dropped by the mayhem filter in the most recent enumerate/top call.
  * Single-user sequential pipeline — read right after the call (S1 uses it to
@@ -167,6 +174,44 @@ export const pumpfun: DataProvider = {
     return toEnumerated(coin);
   },
 };
+
+/**
+ * Batch coin lookup for the vamp scan: full /coins-shaped rows (incl.
+ * ath_market_cap + fee flags) for up to 500 mints per free call. Mayhem rows
+ * are dropped here (provider-boundary policy) and reported back so the scan
+ * feed can surface the exclusion count; unknown mints are simply absent from
+ * the response. Returns raw PumpfunCoin rows — vamp candidates deliberately
+ * never become EnumeratedToken/DB rows (they'd pollute per-wallet stats).
+ */
+export async function getCoinsBatch(
+  mints: string[]
+): Promise<{ coins: PumpfunCoin[]; mayhemExcluded: string[]; calls: number }> {
+  const base = providerConfig.providers.pumpfun!.base_url;
+  const coins: PumpfunCoin[] = [];
+  const mayhemExcluded: string[] = [];
+  let calls = 0;
+  for (let i = 0; i < mints.length; i += 500) {
+    const chunk = mints.slice(i, i + 500);
+    const raw = await providerFetch("pumpfun", `${base}/coins/mints`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mints: chunk }),
+    });
+    calls++;
+    const parsed = coinsPageSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new SchemaValidationError("pumpfun", parsed.error.message.slice(0, 500));
+    }
+    for (const c of parsed.data) {
+      if (isMayhem(c)) {
+        mayhemExcluded.push(c.mint);
+        continue;
+      }
+      coins.push(c);
+    }
+  }
+  return { coins, mayhemExcluded, calls };
+}
 
 /**
  * All-time top deploys by ATH for a wallet — one free call via

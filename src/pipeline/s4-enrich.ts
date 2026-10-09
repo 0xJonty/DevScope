@@ -18,7 +18,8 @@ function imageCandidates(mint: string, uri: string): string[] {
   return candidates;
 }
 
-async function downloadImage(mint: string, uri: string): Promise<string | null> {
+/** Shared by S4 enrichment and the vamp scan (candidate images for vision). */
+export async function downloadImage(mint: string, uri: string): Promise<string | null> {
   const dir = join(config.dataDir, "images");
   await mkdir(dir, { recursive: true });
   for (const candidate of imageCandidates(mint, uri)) {
