@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-09 (Token Scan + Token Library)
+
+### Added
+- **Token Scan** (sidebar tab): paste a single contract address, get one research scan producing the same per-token thesis the deployer pipeline generates. Mini-pipeline over the existing primitives (PLAN.md §7b): free pump.fun single-coin lookup → S2's authoritative-ATH rule (bonded only, max-merge, cache respected) → S4 enrichment (image, curve stats) → one S5 Layer B thesis. Shares the scan queue (no concurrent Claude sessions), SSE event bus, pre-flight quota estimate, and pause/auto-resume on usage limits. Idempotent steps make a paused/failed scan resumable by re-running. The re-scan rule applies: a prior successful thesis for the mint is copied verbatim — already-studied tokens cost zero Layer B.
+- **Token Library** (sidebar tab): cards with token image, name, ticker, contract address (copy button), classification/ATH and scan date; click opens a detail view (metadata, socials, deployer link, full thesis card). Scoped strictly to individually scanned tokens — deployer-scan dossiers never appear here, and token scans never touch the Dev Library (`theses` rows are keyed by scan id; `token_scans` is a separate table).
+- pump.fun single-coin lookup verified live (PLAN.md §16): `POST /coins/mints` with `{"mints":[...]}` returns full coin objects in the enumeration-row shape; unknown mints are omitted (`[]`). v3 still has no per-coin GET route.
+- New `token_scans` table (migration 0002). Shared thesis generation extracted to `generateOrReuseThesis` (S5) and per-token enrichment to `enrichTokenRow` (S4) — dev scan and token scan use the same code paths.
+
+### Changed
+- Sidebar renames: **Scan → Dev Scan**, **Library → Dev Library** (profile view back-link updated to match).
+- Token scan of a mayhem-mode launch is refused by policy at the provider boundary and purges any pre-filter cached row + theses (same rule as S1). Mayhem heuristic re-verified live 2026-10-09: `mayhem_state` presence still discriminates (fresh global sample 56/70 absent; an all-mayhem wallet carries `completed` on week-old coins, confirming it marks real historical mayhem runs, not a backfill).
+
 ## [0.8.3] — 2026-10-08 (prompt standards: ATH-centric, positive assertions)
 
 ### Changed

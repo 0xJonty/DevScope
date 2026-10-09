@@ -25,9 +25,11 @@ const STAGE_RUNNERS: Record<StageId, (ctx: ScanCtx) => Promise<void>> = {
   s7: runS7,
 };
 
-const queue = new PQueue({ concurrency: 1 });
+/** One queue for all Layer B work — deployer scans and token scans never run
+ * Claude sessions concurrently. */
+export const scanQueue = new PQueue({ concurrency: 1 });
 const pauseFlags = new Set<string>();
-const RATE_LIMIT_RESUME_MS = 15 * 60 * 1000;
+export const RATE_LIMIT_RESUME_MS = 15 * 60 * 1000;
 
 export interface NewScanOptions {
   wallet: string;
@@ -100,7 +102,7 @@ export function requestPause(scanId: string): void {
 
 export function startScan(scanId: string): void {
   pauseFlags.delete(scanId);
-  void queue.add(() => executeScan(scanId));
+  void scanQueue.add(() => executeScan(scanId));
 }
 
 async function executeScan(scanId: string): Promise<void> {

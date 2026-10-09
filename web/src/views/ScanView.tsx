@@ -89,7 +89,7 @@ export default function ScanView() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight">Deployer scan</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Dev scan</h1>
         <p className="text-dim text-sm mt-1">
           Paste a wallet. Layer A enumerates and scores every deploy; Claude writes theses for the dossier only.
         </p>

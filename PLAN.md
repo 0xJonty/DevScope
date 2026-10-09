@@ -9,7 +9,9 @@ Reasoning budget: Claude Max 5x subscription (no API billing in v1)
 
 ## 1. Purpose
 
-A local platform giving a pump.fun deployer an edge via AI-reasoned intelligence on other deployers. v1 ships one feature — **Deployer Scan**: given a wallet address, analyze its recent deploy history, generate AI theses for its most/least successful tokens, and synthesize a persistent `*-PROFILE.md` describing the deployer's style, strengths, failure modes, and actionable signals.
+A local platform giving a pump.fun deployer an edge via AI-reasoned intelligence on other deployers. v1 ships one feature — **Deployer Scan** (UI: *Dev Scan*): given a wallet address, analyze its recent deploy history, generate AI theses for its most/least successful tokens, and synthesize a persistent `*-PROFILE.md` describing the deployer's style, strengths, failure modes, and actionable signals.
+
+Added 0.9.0 — **Token Scan**: given a single contract address, run one research scan producing the same per-token thesis the deployer pipeline generates (§7b). Results live in their own *Token Library*, fully scoped apart from deployer profiles.
 
 v1 is the foundation. Later features (live launch alerts, narrative-meta scans, wallet clustering, self post-mortems) consume the same data layer and profile store. Nothing in v1 may assume it is the only feature.
 
@@ -158,6 +160,21 @@ Rule enforced in-prompt: unverified speculation must be labeled; empty `evidence
 
 ---
 
+## 7b. Pipeline — Token Scan (added 0.9.0)
+
+**Input:** one contract address (mint).
+
+A mini-pipeline over the same primitives as §7, run as one queued job (shares the scan queue — Layer B never runs concurrently):
+
+1. **Metadata** — free pump.fun single-coin lookup (`POST /coins/mints`, §16); refreshes mutable cached fields. Mayhem-mode launches are refused by policy at the provider boundary, and any pre-filter cached row (+ theses) is purged.
+2. **ATH** — S2 rule verbatim: bonded tokens get the authoritative Solana Tracker ATH (max-merged with pump.fun's curve-phase value); a cached authoritative ATH is never re-fetched; non-bonded tokens keep the free enumeration ATH.
+3. **Enrichment** — S4's per-token enrichment: image download (vision input), curve stats.
+4. **Thesis (Layer B)** — S5's generator with `selection_reason: "token-scan"` and the standard classification bands. The re-scan rule applies: a prior successful thesis for the mint (from any scan) is copied verbatim — already-studied tokens cost zero Layer B.
+
+State lives in `token_scans` (§9.1); the thesis lands in `theses` keyed `(mint, token_scan_id)`, so deployer-scan and token-scan results stay scoped by scan id with no overlap. Every step is idempotent — a paused/failed scan resumes by re-running. Pause/auto-resume semantics on Claude usage limits match §8.
+
+---
+
 ## 8. Reasoning layer details
 
 - **Model routing:** theses on the default Sonnet-class model; synthesis may use a stronger model (config). Keep per-run context tight — one dossier per run, never the whole set.
@@ -174,7 +191,8 @@ Rule enforced in-prompt: unverified speculation must be labeled; empty `evidence
 - `deployers(wallet PK, name, created_at, last_scanned_at, lifetime_deploys, lifetime_best_ath_usd, lifetime_best_mint, linked_wallets JSON)`
 - `tokens(mint PK, wallet FK, name, ticker, description, image_path, socials JSON, created_at, bonded, ath_usd, ath_at, ath_source, curve_stats JSON, fetched_at)`
 - `scans(id PK, wallet, started_at, finished_at, status, window_n, window_from, window_to, bands_version, quota_spent JSON, stage_state JSON)`
-- `theses(mint, scan_id, json, prompt_version)`
+- `token_scans(id PK, mint, started_at, finished_at, status, status_reason, quota_spent JSON)` — Token Scan runs (§7b)
+- `theses(mint, scan_id, json, prompt_version)` — scan_id is a deployer-scan OR token-scan id
 - `profiles(wallet PK, file_path, updated_at, verdict_snippet)`
 - `provider_usage(provider, month, calls_used, soft_limit)`
 
@@ -209,10 +227,12 @@ Markdown file is source of truth; DB indexes it. Renaming a deployer renames the
 
 Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast grey text, zero decorative color, generous spacing, system/Inter type.
 
-1. **Scan** — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
-2. **Library** — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline.
-3. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
-4. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
+1. **Dev Scan** (renamed from Scan, 0.9.0) — wallet input, optional name, window + dossier dials (prefilled defaults), pre-flight quota estimate vs remaining, start → live stage progress (SSE): current stage, tokens processed, current agent task, pause/resume.
+2. **Token Scan** (added 0.9.0) — contract-address input, pre-flight estimate, start → live feed (SSE), finished thesis rendered inline with a jump to the Token Library.
+3. **Dev Library** (renamed from Library, 0.9.0) — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline. Deployer profiles only — token-scan results never appear here.
+4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card). Individually scanned tokens only — deployer-scan dossiers never appear here.
+5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
+6. **Settings** — quota meters per provider, defaults, bands editor, auth-mode flag, prompt version display.
 
 ---
 
@@ -279,4 +299,5 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - [x] Cashback-coin flag: **`is_cashback_enabled`** in every enumeration row; stored per token and surfaced in the fingerprint.
 - [x] pump.fun `ath_market_cap` post-graduation coverage (verified 2026-10-05): it DOES track post-graduation trading — observed $130.5M on a graduated token, far above any graduation cap. It can lag low on recent graduates (one observed at $45k pump.fun vs $78k Solana Tracker), so bonded tokens keep the Solana Tracker max-merge.
 - [x] `sort=ath_market_cap&order=DESC` works with `creator=` on `/coins` (verified live 2026-10-05) — one free call returns a wallet's all-time top deploys by ATH. Used for lifetime best + S3 auto-pins. `sort=market_cap` and `sort=last_trade_timestamp` also work; `sort=usd_market_cap` is a 400.
-- [x] Mayhem-mode marker (verified live 2026-10-07): mayhem launches carry `mayhem_state` ∈ `'active' | 'paused' | 'completed'` in `/coins` enumeration rows; the field is **absent** on normal coins (70/70 top-ATH sample). `boost_mode` is a different feature (SOL-burn boost) — not a mayhem signal. No per-coin `GET /coins/{mint}` route exists on v3 (404), and `searchTerm` is fuzzy-only. Filter: drop any row where `mayhem_state` is present.
+- [x] Mayhem-mode marker (verified live 2026-10-07): mayhem launches carry `mayhem_state` ∈ `'active' | 'paused' | 'completed'` in `/coins` enumeration rows; the field is **absent** on normal coins (70/70 top-ATH sample). `boost_mode` is a different feature (SOL-burn boost) — not a mayhem signal. No per-coin `GET /coins/{mint}` route exists on v3 (404), and `searchTerm` is fuzzy-only. Filter: drop any row where `mayhem_state` is present. Re-verified 2026-10-09: heuristic still discriminates — fresh global sample 56/70 absent (14 live mayhem), three known deployers 50/50 absent each; one all-mayhem wallet observed with 70/70 present including `'completed'` on week-old coins, so `completed` is a real historical mayhem marker, not a backfill artifact.
+- [x] pump.fun single-coin lookup (verified live 2026-10-09, for Token Scan): `POST {base}/coins/mints` with JSON body `{"mints":[...]}` (≤500 mints, plain-array body is a 400) returns an array of full coin objects in the **same shape as `/coins` enumeration rows** (incl. `ath_market_cap`, `complete`, `is_cashback_enabled`, `mayhem_state` when mayhem). Keyless. Unknown mints are simply omitted from the response.

@@ -1,13 +1,15 @@
 import { readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import type { FastifyInstance } from "fastify";
-import { desc, eq } from "drizzle-orm";
+import type { FastifyReply, FastifyRequest, FastifyInstance } from "fastify";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { bands, config, scanDefaults } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { getAllUsage } from "../providers/quota.js";
 import { createScan, estimateScanCost, requestPause, startScan } from "../pipeline/orchestrator.js";
+import { createTokenScan, estimateTokenScanCost, startTokenScan } from "../pipeline/token-scan.js";
 import { scanEvents } from "../pipeline/events.js";
+import { classify } from "../pipeline/s2-score.js";
 import { STAGE_LABELS, STAGES } from "../pipeline/types.js";
 import { THESIS_PROMPT_VERSION } from "../reasoning/prompts/thesis.js";
 import { SYNTHESIS_PROMPT_VERSION } from "../reasoning/prompts/synthesis.js";
@@ -19,6 +21,32 @@ const newScanBody = z.object({
   windowN: z.number().int().min(10).max(scanDefaults.window_max).optional(),
   pinnedMints: z.array(z.string()).max(5).optional(),
 });
+
+const newTokenScanBody = z.object({ mint: z.string().min(32).max(50) });
+
+const tokenImageUrl = (t: { imagePath: string | null; imageUri: string | null }): string | null =>
+  t.imagePath ? `/images/${t.imagePath.split("/").pop()}` : t.imageUri;
+
+/** SSE progress stream (PLAN.md §10): replays buffered events, then live.
+ * Shared by deployer scans and token scans — both publish to the same bus. */
+function sseEvents(req: FastifyRequest, reply: FastifyReply): void {
+  const scanId = (req.params as { id: string }).id;
+  reply.hijack();
+  reply.raw.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  const send = (ev: ScanEvent) => reply.raw.write(`data: ${JSON.stringify(ev)}\n\n`);
+  for (const ev of scanEvents.replay(scanId)) send(ev);
+  const listener = (ev: ScanEvent) => send(ev);
+  scanEvents.on(`scan:${scanId}`, listener);
+  const heartbeat = setInterval(() => reply.raw.write(": ping\n\n"), 15_000);
+  req.raw.on("close", () => {
+    clearInterval(heartbeat);
+    scanEvents.off(`scan:${scanId}`, listener);
+  });
+}
 
 export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   // ── Scans ──────────────────────────────────────────────────────────────
@@ -63,25 +91,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // SSE progress stream (PLAN.md §10): replays buffered events, then live.
-  app.get("/api/scans/:id/events", (req, reply) => {
-    const scanId = (req.params as { id: string }).id;
-    reply.hijack();
-    reply.raw.writeHead(200, {
-      "content-type": "text/event-stream",
-      "cache-control": "no-cache",
-      connection: "keep-alive",
-    });
-    const send = (ev: ScanEvent) => reply.raw.write(`data: ${JSON.stringify(ev)}\n\n`);
-    for (const ev of scanEvents.replay(scanId)) send(ev);
-    const listener = (ev: ScanEvent) => send(ev);
-    scanEvents.on(`scan:${scanId}`, listener);
-    const heartbeat = setInterval(() => reply.raw.write(": ping\n\n"), 15_000);
-    req.raw.on("close", () => {
-      clearInterval(heartbeat);
-      scanEvents.off(`scan:${scanId}`, listener);
-    });
-  });
+  app.get("/api/scans/:id/events", sseEvents);
 
   app.get("/api/estimate", async (req) => {
     const q = req.query as { wallet?: string; window?: string };
@@ -89,6 +99,122 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     return {
       estimate: q.wallet ? estimateScanCost(q.wallet, windowN) : null,
       quota: getAllUsage(),
+    };
+  });
+
+  // ── Token scans (single-contract research scans) ──────────────────────
+  app.post("/api/token-scans", async (req, reply) => {
+    const parsed = newTokenScanBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    const mint = parsed.data.mint.trim();
+    const scanId = createTokenScan(mint);
+    return { scanId, estimate: estimateTokenScanCost(mint), quota: getAllUsage() };
+  });
+
+  app.post("/api/token-scans/:id/start", async (req) => {
+    startTokenScan((req.params as { id: string }).id);
+    return { ok: true };
+  });
+
+  app.get("/api/token-scans/estimate", async (req) => {
+    const q = req.query as { mint?: string };
+    return { estimate: q.mint ? estimateTokenScanCost(q.mint) : null, quota: getAllUsage() };
+  });
+
+  app.get("/api/token-scans", async () => {
+    const scans = db.select().from(schema.tokenScans).orderBy(desc(schema.tokenScans.startedAt)).limit(30).all();
+    return scans.map((s) => {
+      const t = db.select().from(schema.tokens).where(eq(schema.tokens.mint, s.mint)).get();
+      return {
+        ...s,
+        name: t?.name ?? null,
+        ticker: t?.ticker ?? null,
+        imageUrl: t ? tokenImageUrl(t) : null,
+      };
+    });
+  });
+
+  app.get("/api/token-scans/:id", async (req, reply) => {
+    const scan = db
+      .select()
+      .from(schema.tokenScans)
+      .where(eq(schema.tokenScans.id, (req.params as { id: string }).id))
+      .get();
+    if (!scan) return reply.code(404).send({ error: "token scan not found" });
+    const t = db.select().from(schema.tokens).where(eq(schema.tokens.mint, scan.mint)).get();
+    return { ...scan, name: t?.name ?? null, ticker: t?.ticker ?? null, imageUrl: t ? tokenImageUrl(t) : null };
+  });
+
+  app.get("/api/token-scans/:id/events", sseEvents);
+
+  // ── Token library ──────────────────────────────────────────────────────
+  // Only tokens researched via Token Scan appear here (latest done scan per
+  // mint); deployer-scan dossiers never leak in and vice versa.
+  app.get("/api/token-library", async () => {
+    const scans = db
+      .select()
+      .from(schema.tokenScans)
+      .where(eq(schema.tokenScans.status, "done"))
+      .orderBy(desc(schema.tokenScans.startedAt))
+      .all();
+    const seen = new Set<string>();
+    const out = [];
+    for (const s of scans) {
+      if (seen.has(s.mint)) continue;
+      seen.add(s.mint);
+      const t = db.select().from(schema.tokens).where(eq(schema.tokens.mint, s.mint)).get();
+      if (!t) continue;
+      out.push({
+        mint: s.mint,
+        name: t.name,
+        ticker: t.ticker,
+        imageUrl: tokenImageUrl(t),
+        wallet: t.wallet,
+        bonded: t.bonded,
+        athUsd: t.athUsd,
+        createdAt: t.createdAt,
+        classification: classify(t.bonded, t.athUsd),
+        scannedAt: s.finishedAt ?? s.startedAt,
+        scanId: s.id,
+      });
+    }
+    return out;
+  });
+
+  app.get("/api/token-library/:mint", async (req, reply) => {
+    const mint = (req.params as { mint: string }).mint;
+    const scan = db
+      .select()
+      .from(schema.tokenScans)
+      .where(and(eq(schema.tokenScans.mint, mint), eq(schema.tokenScans.status, "done")))
+      .orderBy(desc(schema.tokenScans.startedAt))
+      .get();
+    if (!scan) return reply.code(404).send({ error: "no completed token scan for this mint yet" });
+    const t = db.select().from(schema.tokens).where(eq(schema.tokens.mint, mint)).get();
+    if (!t) return reply.code(404).send({ error: "token not cached" });
+    const thesisRow = db
+      .select()
+      .from(schema.theses)
+      .where(and(eq(schema.theses.mint, mint), eq(schema.theses.scanId, scan.id)))
+      .get();
+    return {
+      mint,
+      name: t.name,
+      ticker: t.ticker,
+      description: t.description,
+      socials: t.socials ?? {},
+      wallet: t.wallet,
+      bonded: t.bonded,
+      athUsd: t.athUsd,
+      athAt: t.athAt,
+      createdAt: t.createdAt,
+      imageUrl: tokenImageUrl(t),
+      classification: classify(t.bonded, t.athUsd),
+      curveStats: t.curveStats ?? null,
+      replyCount: t.replyCount,
+      scannedAt: scan.finishedAt ?? scan.startedAt,
+      promptVersion: thesisRow?.promptVersion ?? null,
+      thesis: thesisRow?.json ?? null,
     };
   });
 

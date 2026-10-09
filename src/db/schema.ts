@@ -52,6 +52,19 @@ export const scans = sqliteTable("scans", {
   pinnedMints: text("pinned_mints", { mode: "json" }).$type<string[]>(),
 });
 
+/** Individual token research scans (Token Scan). The thesis lands in `theses`
+ * keyed (mint, scan_id = token_scans.id) — same contract as deployer scans,
+ * so dev-scan and token-scan results stay scoped by scan id with no overlap. */
+export const tokenScans = sqliteTable("token_scans", {
+  id: text("id").primaryKey(),
+  mint: text("mint").notNull(),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+  status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
+  statusReason: text("status_reason"),
+  quotaSpent: text("quota_spent", { mode: "json" }).$type<Record<string, number>>(),
+});
+
 export const theses = sqliteTable(
   "theses",
   {

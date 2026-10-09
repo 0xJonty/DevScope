@@ -1,6 +1,6 @@
 # DevScope
 
-Local tool giving a pump.fun deployer an edge: paste a rival deployer's wallet, get a persistent AI-reasoned `*-PROFILE.md` of their style, strengths, failure modes, and actionable signals. Spec in [PLAN.md](PLAN.md) — v1 ships one feature, **Deployer Scan**.
+Local tool giving a pump.fun deployer an edge: paste a rival deployer's wallet, get a persistent AI-reasoned `*-PROFILE.md` of their style, strengths, failure modes, and actionable signals. Spec in [PLAN.md](PLAN.md). Two scan types: **Dev Scan** (full deployer profile) and **Token Scan** (single contract address → one research thesis, kept in its own Token Library).
 
 Two strictly separated layers: deterministic code handles all bulk data (enumeration, ATH scoring, classification, quota, cache); Claude (via the Agent SDK on your Max subscription) only ever sees ≤ ~25 curated token dossiers per scan.
 
@@ -66,11 +66,13 @@ npm run cli -- quota                               # monthly ledger
 
 1. `npm run smoke` — all green.
 2. `npm run dev`, open http://localhost:5717.
-3. **Scan** tab → paste a deployer wallet you know well (PLAN.md §13: grade the output against ground truth first), optionally name it, keep window 300.
+3. **Dev Scan** tab → paste a deployer wallet you know well (PLAN.md §13: grade the output against ground truth first), optionally name it, keep window 300.
 4. Check the pre-flight estimate against the quota meters, hit **Start scan**.
 5. Watch the stage rail: S1–S4 are deterministic and fast; S5 runs one Claude thesis per dossier token (web search + token-image vision); S6 synthesizes the profile. A usage-window limit pauses the scan and auto-resumes ~15 min later.
-6. When S7 finishes the profile appears in **Library**; the markdown source of truth is written to `/profiles/`.
+6. When S7 finishes the profile appears in **Dev Library**; the markdown source of truth is written to `/profiles/`.
 7. Re-scan any time via **Update scan** — it delta-fetches only new deploys and keeps old theses verbatim.
+
+For a single token instead: **Token Scan** tab → paste the contract address → one research scan (metadata, ATH, image, one Claude thesis). The result renders inline and lands in **Token Library**; a token that already has a thesis (from any scan) reuses it verbatim at zero Claude cost.
 
 ## Repo map
 

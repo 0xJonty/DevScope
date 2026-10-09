@@ -34,7 +34,7 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
     <div className="space-y-6">
       <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Library</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Dev Library</h1>
           <p className="text-dim text-sm mt-1">Every profiled deployer. Click a card to read the profile.</p>
         </div>
         <div className="flex gap-3">
@@ -59,7 +59,7 @@ export default function LibraryView({ openProfile }: { openProfile: (wallet: str
       {entries === null && <p className="text-faint text-sm">Loading…</p>}
       {entries?.length === 0 && (
         <div className="border border-line rounded-md px-6 py-10 text-center text-dim text-sm">
-          No profiles yet. Run your first scan from the Scan tab.
+          No profiles yet. Run your first scan from the Dev Scan tab.
         </div>
       )}
 

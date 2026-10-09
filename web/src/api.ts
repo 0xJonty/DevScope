@@ -45,6 +45,53 @@ export interface ScanEvent {
   at: number;
 }
 
+export interface TokenScanInfo {
+  id: string;
+  mint: string;
+  status: "running" | "paused" | "failed" | "done";
+  statusReason: string | null;
+  startedAt: number;
+  finishedAt: number | null;
+  quotaSpent: Record<string, number> | null;
+  name: string | null;
+  ticker: string | null;
+  imageUrl: string | null;
+}
+
+export interface TokenLibraryEntry {
+  mint: string;
+  name: string;
+  ticker: string;
+  imageUrl: string | null;
+  wallet: string;
+  bonded: boolean;
+  athUsd: number | null;
+  createdAt: number;
+  classification: string;
+  scannedAt: number;
+  scanId: string;
+}
+
+export interface TokenDetail {
+  mint: string;
+  name: string;
+  ticker: string;
+  description: string | null;
+  socials: { twitter?: string; telegram?: string; website?: string };
+  wallet: string;
+  bonded: boolean;
+  athUsd: number | null;
+  athAt: number | null;
+  createdAt: number;
+  imageUrl: string | null;
+  classification: string;
+  curveStats: Record<string, unknown> | null;
+  replyCount: number | null;
+  scannedAt: number;
+  promptVersion: string | null;
+  thesis: ThesisJson | null;
+}
+
 export interface Settings {
   authMode: string;
   scanDefaults: { window_n: number; window_max: number; dossier: { cap: number } };
@@ -140,6 +187,22 @@ export const api = {
     fetch(`/api/estimate?wallet=${encodeURIComponent(wallet)}&window=${windowN}`).then((r) =>
       json<{ estimate: EstimateMap | null; quota: QuotaMap }>(r)
     ),
+  createTokenScan: (mint: string) =>
+    fetch("/api/token-scans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mint }),
+    }).then((r) => json<{ scanId: string; estimate: EstimateMap; quota: QuotaMap }>(r)),
+  startTokenScan: (id: string) => fetch(`/api/token-scans/${id}/start`, { method: "POST" }).then(json),
+  getTokenScan: (id: string) => fetch(`/api/token-scans/${id}`).then((r) => json<TokenScanInfo>(r)),
+  listTokenScans: () => fetch("/api/token-scans").then((r) => json<TokenScanInfo[]>(r)),
+  tokenEstimate: (mint: string) =>
+    fetch(`/api/token-scans/estimate?mint=${encodeURIComponent(mint)}`).then((r) =>
+      json<{ estimate: EstimateMap | null; quota: QuotaMap }>(r)
+    ),
+  tokenLibrary: () => fetch("/api/token-library").then((r) => json<TokenLibraryEntry[]>(r)),
+  tokenDetail: (mint: string) =>
+    fetch(`/api/token-library/${mint}`).then((r) => json<TokenDetail>(r)),
   library: () => fetch("/api/library").then((r) => json<LibraryEntry[]>(r)),
   profile: (wallet: string) =>
     fetch(`/api/profiles/${wallet}`).then((r) => json<{ wallet: string; name: string | null; markdown: string; updatedAt: number }>(r)),
@@ -161,8 +224,12 @@ export const api = {
   quota: () => fetch("/api/quota").then((r) => json<QuotaMap>(r)),
 };
 
-export function subscribeScanEvents(scanId: string, onEvent: (ev: ScanEvent) => void): () => void {
-  const source = new EventSource(`/api/scans/${scanId}/events`);
+export function subscribeScanEvents(
+  scanId: string,
+  onEvent: (ev: ScanEvent) => void,
+  kind: "scans" | "token-scans" = "scans"
+): () => void {
+  const source = new EventSource(`/api/${kind}/${scanId}/events`);
   source.onmessage = (e) => {
     try {
       onEvent(JSON.parse(e.data) as ScanEvent);

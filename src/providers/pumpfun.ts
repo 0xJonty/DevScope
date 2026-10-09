@@ -2,6 +2,7 @@ import { z } from "zod";
 import { providerConfig } from "../config.js";
 import { providerFetch } from "./http.js";
 import {
+  ProviderError,
   SchemaValidationError,
   type DataProvider,
   type EnumeratedToken,
@@ -59,6 +60,16 @@ export function getMayhemExcludedMints(): string[] {
 
 function isMayhem(c: z.infer<typeof coinSchema>): boolean {
   return c.mayhem_state != null;
+}
+
+/** Policy exclusion surfaced to the caller (token scan of a mayhem launch). */
+export class MayhemExcludedError extends Error {
+  constructor(mint: string) {
+    super(
+      `${mint} is a pump.fun mayhem-mode launch — excluded by policy (AI-agent gambling chart, not a studyable deploy).`
+    );
+    this.name = "MayhemExcludedError";
+  }
 }
 
 const coinsPageSchema = z.array(z.looseObject(coinSchema.shape));
@@ -128,6 +139,32 @@ export const pumpfun: DataProvider = {
       offset += page.length;
     }
     return out;
+  },
+
+  /**
+   * Single-token lookup (verified live 2026-10-09): v3 has no per-coin GET
+   * route, but `POST {base}/coins/mints` with body `{"mints":[...]}` (≤500
+   * mints) returns full coin objects in the same shape as `/coins`
+   * enumeration rows. Keyless. Mayhem-mode launches throw — the provider
+   * boundary never hands them to the pipeline.
+   */
+  async getTokenDetail(mint) {
+    const base = providerConfig.providers.pumpfun!.base_url;
+    const raw = await providerFetch("pumpfun", `${base}/coins/mints`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mints: [mint] }),
+    });
+    const parsed = coinsPageSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new SchemaValidationError("pumpfun", parsed.error.message.slice(0, 500));
+    }
+    const coin = parsed.data.find((c) => c.mint === mint);
+    if (!coin) {
+      throw new ProviderError("pumpfun", `no pump.fun coin exists for mint ${mint}`, 404);
+    }
+    if (isMayhem(coin)) throw new MayhemExcludedError(mint);
+    return toEnumerated(coin);
   },
 };
 

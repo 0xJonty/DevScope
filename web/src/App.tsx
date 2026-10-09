@@ -1,18 +1,26 @@
 import { useState } from "react";
 import ScanView from "./views/ScanView";
+import TokenScanView from "./views/TokenScanView";
 import LibraryView from "./views/LibraryView";
+import TokenLibraryView from "./views/TokenLibraryView";
 import ProfileView from "./views/ProfileView";
+import TokenView from "./views/TokenView";
 import SettingsView from "./views/SettingsView";
 
 export type View =
   | { name: "scan"; scanId?: string }
+  | { name: "tokenScan" }
   | { name: "library" }
+  | { name: "tokenLibrary" }
   | { name: "profile"; wallet: string }
+  | { name: "token"; mint: string }
   | { name: "settings" };
 
 const NAV: Array<{ key: View["name"]; label: string }> = [
-  { key: "scan", label: "Scan" },
-  { key: "library", label: "Library" },
+  { key: "scan", label: "Dev Scan" },
+  { key: "tokenScan", label: "Token Scan" },
+  { key: "library", label: "Dev Library" },
+  { key: "tokenLibrary", label: "Token Library" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -35,7 +43,10 @@ export default function App() {
         </div>
         <nav className="flex flex-col gap-1">
           {NAV.map((item) => {
-            const active = view.name === item.key || (item.key === "library" && view.name === "profile");
+            const active =
+              view.name === item.key ||
+              (item.key === "library" && view.name === "profile") ||
+              (item.key === "tokenLibrary" && view.name === "token");
             return (
               <button
                 key={item.key}
@@ -52,9 +63,14 @@ export default function App() {
       </aside>
       <main className="flex-1 min-w-0 px-10 py-8 max-w-[1800px] mx-auto">
         {view.name === "scan" && <ScanView />}
+        {view.name === "tokenScan" && <TokenScanView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
+        {view.name === "tokenLibrary" && <TokenLibraryView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "profile" && (
           <ProfileView wallet={view.wallet} back={() => setView({ name: "library" })} rescan={() => setView({ name: "scan" })} />
+        )}
+        {view.name === "token" && (
+          <TokenView mint={view.mint} back={() => setView({ name: "tokenLibrary" })} rescan={() => setView({ name: "tokenScan" })} />
         )}
         {view.name === "settings" && <SettingsView />}
       </main>

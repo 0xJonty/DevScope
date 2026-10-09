@@ -4,10 +4,10 @@ import { join, extname } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline as streamPipeline } from "node:stream/promises";
 import { config } from "../config.js";
-import { getTokensByMints, setTokenCurveStats, setTokenImagePath } from "../db/tokens.js";
+import { getTokensByMints, setTokenCurveStats, setTokenImagePath, type TokenRow } from "../db/tokens.js";
 import { geckoterminal } from "../providers/index.js";
 import { getStageState, patchStageState, recordQuotaSpent } from "./checkpoint.js";
-import { ScanPausedError, type DossierEntry, type ScanCtx } from "./types.js";
+import { ScanPausedError, type DossierEntry, type ScanCtx, type StageId } from "./types.js";
 
 /** ipfs.io rate-limits hard (observed 429s) — try pump.fun's own image CDN
  * first, then the original URI, then a Pinata gateway rewrite. */
@@ -42,10 +42,57 @@ async function downloadImage(mint: string, uri: string): Promise<string | null> 
 }
 
 /**
- * S4 — Dossier enrichment, selected tokens only: image download (vision input
- * for S5), price-curve summary. Curve stats come from GeckoTerminal daily
- * candles when a pool address exists; otherwise only time-to-ATH from cached
- * fields. Missing data stays null — never fabricated (PLAN.md rules).
+ * Enrich one selected token: image download (vision input for the thesis) +
+ * price-curve summary. Curve stats come from GeckoTerminal daily candles when
+ * a pool address exists; otherwise only time-to-ATH from cached fields.
+ * Missing data stays null — never fabricated (PLAN.md rules). Shared by S4
+ * and the token-scan pipeline.
+ */
+export async function enrichTokenRow(
+  row: TokenRow,
+  emit: ScanCtx["emit"],
+  recordQuota: (provider: "geckoterminal", calls: number) => void,
+  stage?: StageId
+): Promise<void> {
+  if (!row.imagePath && row.imageUri) {
+    const path = await downloadImage(row.mint, row.imageUri);
+    if (path) {
+      setTokenImagePath(row.mint, path);
+    } else {
+      emit({ type: "log", stage, message: `image download failed on all gateways for ${row.mint}` });
+    }
+  }
+
+  const curve: Record<string, unknown> = {
+    time_to_ath_hours:
+      row.athAt != null && row.athAt > row.createdAt ? (row.athAt - row.createdAt) / 3.6e6 : null,
+    lifespan_hours:
+      row.lastTradeAt != null && row.lastTradeAt > row.createdAt
+        ? (row.lastTradeAt - row.createdAt) / 3.6e6
+        : null,
+    reply_count: row.replyCount,
+  };
+  if (row.poolAddress && row.bonded) {
+    try {
+      const candles = await geckoterminal.getOhlcv!(row.poolAddress);
+      recordQuota("geckoterminal", 1);
+      if (candles.length > 0) {
+        const peak = candles.reduce((a, b) => (b.high > a.high ? b : a));
+        const after = candles.filter((c) => c.ts > peak.ts);
+        curve.days_with_trades = candles.length;
+        curve.total_volume_usd = candles.reduce((s, c) => s + c.volume, 0);
+        curve.retrace_7d_after_ath =
+          after.length > 0 && peak.high > 0 ? 1 - Math.min(...after.slice(0, 7).map((c) => c.low)) / peak.high : null;
+      }
+    } catch (err) {
+      emit({ type: "log", stage, message: `candles unavailable for ${row.mint}: ${String(err)}` });
+    }
+  }
+  setTokenCurveStats(row.mint, curve);
+}
+
+/**
+ * S4 — Dossier enrichment, selected tokens only (see enrichTokenRow).
  */
 export async function runS4(ctx: ScanCtx): Promise<void> {
   const selection = (getStageState(ctx.scanId, "s3").selection ?? []) as DossierEntry[];
@@ -64,41 +111,7 @@ export async function runS4(ctx: ScanCtx): Promise<void> {
       total: rows.length,
     });
 
-    if (!row.imagePath && row.imageUri) {
-      const path = await downloadImage(row.mint, row.imageUri);
-      if (path) {
-        setTokenImagePath(row.mint, path);
-      } else {
-        ctx.emit({ type: "log", stage: "s4", message: `image download failed on all gateways for ${row.mint}` });
-      }
-    }
-
-    const curve: Record<string, unknown> = {
-      time_to_ath_hours:
-        row.athAt != null && row.athAt > row.createdAt ? (row.athAt - row.createdAt) / 3.6e6 : null,
-      lifespan_hours:
-        row.lastTradeAt != null && row.lastTradeAt > row.createdAt
-          ? (row.lastTradeAt - row.createdAt) / 3.6e6
-          : null,
-      reply_count: row.replyCount,
-    };
-    if (row.poolAddress && row.bonded) {
-      try {
-        const candles = await geckoterminal.getOhlcv!(row.poolAddress);
-        recordQuotaSpent(ctx.scanId, "geckoterminal", 1);
-        if (candles.length > 0) {
-          const peak = candles.reduce((a, b) => (b.high > a.high ? b : a));
-          const after = candles.filter((c) => c.ts > peak.ts);
-          curve.days_with_trades = candles.length;
-          curve.total_volume_usd = candles.reduce((s, c) => s + c.volume, 0);
-          curve.retrace_7d_after_ath =
-            after.length > 0 && peak.high > 0 ? 1 - Math.min(...after.slice(0, 7).map((c) => c.low)) / peak.high : null;
-        }
-      } catch (err) {
-        ctx.emit({ type: "log", stage: "s4", message: `candles unavailable for ${row.mint}: ${String(err)}` });
-      }
-    }
-    setTokenCurveStats(row.mint, curve);
+    await enrichTokenRow(row, ctx.emit, (provider, calls) => recordQuotaSpent(ctx.scanId, provider, calls), "s4");
 
     done.add(row.mint);
     patchStageState(ctx.scanId, "s4", { enriched: [...done] });

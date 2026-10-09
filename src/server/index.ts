@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import { assertAuthMode, config } from "../config.js";
 import { recoverInterruptedScans } from "../pipeline/orchestrator.js";
+import { recoverInterruptedTokenScans } from "../pipeline/token-scan.js";
 import { registerApiRoutes } from "./routes.js";
 
 const app = Fastify({ logger: { level: "info" } });
@@ -11,6 +12,7 @@ const app = Fastify({ logger: { level: "info" } });
 // Fail-loud startup guards (PLAN.md §8, §12).
 assertAuthMode();
 recoverInterruptedScans();
+recoverInterruptedTokenScans();
 
 const webDist = join(config.root, "web", "dist");
 if (existsSync(webDist)) {
