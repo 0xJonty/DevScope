@@ -50,6 +50,7 @@ export default function VampPanel({ mint, autostart = false }: { mint: string; a
   const [estimate, setEstimate] = useState<EstimateMap | null>(null);
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [copiedMint, setCopiedMint] = useState<string | null>(null);
   const startedRef = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -134,19 +135,44 @@ export default function VampPanel({ mint, autostart = false }: { mint: string; a
       {j && !j.generation_failed && (
         <>
           {j.counterparts && j.counterparts.length > 0 && (
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {j.counterparts.map((c) => (
-                <li key={c.mint} className="text-sm flex items-baseline gap-2 flex-wrap">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="text-dim text-xs">{RELATIONSHIP_LABELS[c.relationship] ?? c.relationship}</span>
-                  <a
-                    href={`https://pump.fun/coin/${c.mint}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-faint hover:text-accent text-xs"
-                  >
-                    pump.fun ↗
-                  </a>
+                <li key={c.mint} className="flex items-center gap-3 bg-bg border border-line rounded-md px-3 py-2">
+                  {c.imageUrl ? (
+                    <img src={c.imageUrl} alt="" className="w-9 h-9 rounded-md object-cover border border-line shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-md border border-line bg-surface flex items-center justify-center shrink-0">
+                      <BatIcon className="w-4 h-4 text-faint" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="font-medium text-sm truncate">{c.name}</span>
+                      {c.ticker && <span className="text-dim text-xs shrink-0">${c.ticker}</span>}
+                      <span className="text-faint text-xs">{RELATIONSHIP_LABELS[c.relationship] ?? c.relationship}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs mt-0.5">
+                      <span className="font-mono text-faint truncate">{c.mint}</span>
+                      <button
+                        onClick={() => {
+                          void navigator.clipboard.writeText(c.mint);
+                          setCopiedMint(c.mint);
+                          setTimeout(() => setCopiedMint((m) => (m === c.mint ? null : m)), 1500);
+                        }}
+                        className="text-faint hover:text-accent shrink-0"
+                      >
+                        {copiedMint === c.mint ? "copied" : "copy"}
+                      </button>
+                      <a
+                        href={`https://pump.fun/coin/${c.mint}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-faint hover:text-accent shrink-0"
+                      >
+                        pump.fun ↗
+                      </a>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

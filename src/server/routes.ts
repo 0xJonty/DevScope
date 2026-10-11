@@ -214,8 +214,25 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/vamp-scans/:id/events", sseEvents);
 
-  /** Latest vamp scan + verdict for a mint — token pages render this. */
-  app.get("/api/vamp/:mint", async (req) => getVampState((req.params as { mint: string }).mint));
+  /** Latest vamp scan + verdict for a mint — token pages render this.
+   * Counterparts are shortlist mints (pipeline-enforced), so the response
+   * enriches each with ticker + image from the scan's shortlist snapshot —
+   * the stored verdict itself stays lean. */
+  app.get("/api/vamp/:mint", async (req) => {
+    const state = getVampState((req.params as { mint: string }).mint);
+    const shortlist = state.scan?.shortlist;
+    const counterparts = state.verdict?.counterparts;
+    if (shortlist && Array.isArray(counterparts)) {
+      for (const c of counterparts as Array<{ mint?: string; ticker?: string; imageUrl?: string | null }>) {
+        const entry = shortlist.find((s) => s.mint === c.mint);
+        if (entry) {
+          c.ticker = entry.ticker;
+          c.imageUrl = tokenImageUrl(entry);
+        }
+      }
+    }
+    return state;
+  });
 
   // ── Dev-scan token page (bat button target, PLAN.md §10) ─────────────
   // Token data + latest thesis for a dossier token, scoped under its

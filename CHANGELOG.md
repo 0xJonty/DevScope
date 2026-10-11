@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-10-12 (vamp counterpart token boxes)
+
+### Changed
+- Vamp scan panel: counterparts now render as token boxes (image, ticker, name, contract address with copy button, pump.fun link) instead of a bare name + link. `/api/vamp/:mint` enriches each counterpart with `ticker` + `imageUrl` from the scan's shortlist snapshot (counterparts are pipeline-enforced shortlist mints); the stored verdict JSON is unchanged.
+
 ## [0.11.0] — 2026-10-09 (customizable bands, mayhem flag, input validation)
 
 ### Added

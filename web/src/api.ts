@@ -79,6 +79,9 @@ export interface VampCounterpart {
   mint: string;
   name: string;
   relationship: "victim" | "vamper" | "pvp_rival";
+  /** Enriched server-side from the scan's shortlist snapshot. */
+  ticker?: string;
+  imageUrl?: string | null;
 }
 
 export interface VampVerdictJson {
