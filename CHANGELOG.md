@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-10-12 (narrative deploy prefill rework)
+
+### Changed
+- Narrative deploy modal prefill: description is left EMPTY (was auto-filled with the narrative summary); the twitter field is prefilled with the narrative's most-liked viral post, and the website field with that post's site when the report carries one. Older scans without like data fall back to the first (most-viral-first) post.
+
+### Added
+- `key_posts` entries gain optional `likes` (the like count the Grok report states — never estimated) and `website` (a non-X site the post links to, copied verbatim); prompt `narrative-v1.2.0`. The N2 mechanical gate now also strips any per-post website string the report never mentions, same rule as invented post URLs. The narrative token page shows per-post like counts and website links.
+
 ## [0.16.1] — 2026-10-12
 
 ### Changed

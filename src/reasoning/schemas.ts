@@ -186,6 +186,10 @@ export const narrativeSchema = z.object({
     z.object({
       url: z.string(),
       note: z.string(),
+      /** Like count the report states — absent when the report gives none. */
+      likes: z.number().int().min(0).nullish(),
+      /** Non-X website the post links to, verbatim from the report (gated in N2). */
+      website: z.string().nullish(),
     })
   ),
   confidence: z.enum(["high", "medium", "low"]),
@@ -255,6 +259,15 @@ export const narrativeReportJsonSchema = {
               properties: {
                 url: { type: "string", description: "Post URL taken from the report — never invented" },
                 note: { type: "string", description: "What this post is / why it matters to the narrative" },
+                likes: {
+                  type: "integer",
+                  minimum: 0,
+                  description: "Like count the report states for this post — omit when the report gives none, never estimate",
+                },
+                website: {
+                  type: "string",
+                  description: "Non-X website this post links to, copied VERBATIM from the report — omit when none, never invent",
+                },
               },
               required: ["url", "note"],
             },

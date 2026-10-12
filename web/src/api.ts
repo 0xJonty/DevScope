@@ -160,6 +160,10 @@ export interface TokenDetail {
 export interface NarrativePost {
   url: string;
   note: string;
+  /** Like count from the Grok report (0.17.0) — absent on older scans. */
+  likes?: number | null;
+  /** Non-X website the post links to (0.17.0, report-gated) — absent on older scans. */
+  website?: string | null;
 }
 
 export type NarrativeFeeType = "creator_fees" | "holder_rewards" | "fee_share" | "charity";

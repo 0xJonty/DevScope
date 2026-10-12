@@ -108,7 +108,7 @@ export default function NarrativeTokenView({ id, back }: { id: string; back: () 
           <h2 className="text-sm font-medium text-dim">Viral posts</h2>
           <ul className="space-y-2">
             {n.key_posts.map((p, i) => (
-              <li key={i} className="border border-line rounded-md px-4 py-2.5 text-sm flex gap-3 min-w-0">
+              <li key={i} className="border border-line rounded-md px-4 py-2.5 text-sm flex gap-3 min-w-0 items-start">
                 <a
                   href={p.url}
                   target="_blank"
@@ -118,7 +118,22 @@ export default function NarrativeTokenView({ id, back }: { id: string; back: () 
                 >
                   {postLabel(p.url)}
                 </a>
-                <span className="text-dim text-xs leading-relaxed">{p.note}</span>
+                <span className="text-dim text-xs leading-relaxed min-w-0 flex-1">
+                  {p.note}
+                  {p.website && (
+                    <>
+                      {" "}
+                      <a href={p.website} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">
+                        {p.website.replace(/^https?:\/\//, "")}
+                      </a>
+                    </>
+                  )}
+                </span>
+                {p.likes != null && (
+                  <span className="text-faint text-xs shrink-0 pt-0.5" title={`${p.likes.toLocaleString()} likes (from the Grok report)`}>
+                    ♥ {p.likes >= 1000 ? `${(p.likes / 1000).toFixed(p.likes >= 10000 ? 0 : 1)}k` : p.likes}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

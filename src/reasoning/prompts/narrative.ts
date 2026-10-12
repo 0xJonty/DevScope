@@ -17,7 +17,7 @@
 // recommended fee type with reason, and a user-set count (1-5) of most-viral
 // posts. stale_dropped widened to cover non-tokenable drops.
 // narrative-v1.0.0 (2026-10-12): initial version.
-export const NARRATIVE_PROMPT_VERSION = "narrative-v1.1.1";
+export const NARRATIVE_PROMPT_VERSION = "narrative-v1.2.0";
 
 /** N1 — what Grok researches on X. The x_search tool rides along scoped to
  * [from_date, to_date); the prose restates the window because date params are
@@ -81,7 +81,7 @@ TASK:
    - ticker: the canonical word of the moment, UPPERCASE, 2-10 characters HARD LIMIT (pump.fun's), no $ prefix, spelled EXACTLY as the crowd spells it (the report's spelling is ground truth — launch-window fights are decided by canonical spelling, never "improve" it). When the canonical phrase is longer than 10 characters, compress to the strongest single word or the abbreviation the crowd already uses — never truncate mid-word.
    - token_name: the narrative's canonical phrasing as a pump.fun display name — what a buyer scanning the feed instantly recognizes.
    - fee_type + fee_reason (one line): creator_fees = the default engine, fits fast breaking-news plays where speed beats mechanics; holder_rewards = community/identity narratives where holding IS the point (pride, "we" stories, long-running memes); fee_share = narratives centered on a real person/account who could plausibly be gifted the fee share — the alignment is the signal; charity = disaster/cause/sympathy narratives where a charity flag completes the story.
-4. key_posts: exactly ${opts.relatedTweets} post(s) per narrative, most viral first. Every URL MUST appear verbatim in the report or the citation list — never invent, repair, or extend a URL. Prefer x.com/<handle>/status/<id> post links; if the report carries fewer than ${opts.relatedTweets} usable URLs for a narrative, include what exists — never pad with invented links.
+4. key_posts: exactly ${opts.relatedTweets} post(s) per narrative, most viral first. Every URL MUST appear verbatim in the report or the citation list — never invent, repair, or extend a URL. Prefer x.com/<handle>/status/<id> post links; if the report carries fewer than ${opts.relatedTweets} usable URLs for a narrative, include what exists — never pad with invented links. Per post also set: likes = the like count the report states for it (omit when the report gives no number — never estimate); website = a non-X website the post links to or the report ties to that post, copied VERBATIM from the report (omit when none — never invent).
 5. summary: what the narrative IS and why X cares right now, concrete, names spelled out. momentum from the report's virality signals; started as the report dates it.
 6. Order narratives biggest-first, as the report's signals support.
 

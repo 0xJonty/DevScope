@@ -119,7 +119,9 @@ async function executeNarrativeScan(id: string): Promise<void> {
       }
 
       // Mechanical URL gate: a key_post must exist in the Grok report or its
-      // citation list — invented/repaired URLs are dropped loudly.
+      // citation list — invented/repaired URLs are dropped loudly. The same
+      // rule gates per-post websites (0.17.0): a website string the report
+      // never mentions is stripped from the post, not trusted.
       const known = new Set(raw.citations);
       for (const n of report.narratives) {
         const kept = n.key_posts.filter((p) => known.has(p.url) || raw.text.includes(p.url));
@@ -129,6 +131,15 @@ async function executeNarrativeScan(id: string): Promise<void> {
             message: `Dropped ${n.key_posts.length - kept.length} un-sourced post link(s) from "${n.title}".`,
           });
           n.key_posts = kept;
+        }
+        for (const p of n.key_posts) {
+          if (p.website && !raw.text.includes(p.website) && !known.has(p.website)) {
+            emit({
+              type: "log",
+              message: `Dropped un-sourced website "${p.website.slice(0, 80)}" from a "${n.title}" post.`,
+            });
+            p.website = null;
+          }
         }
       }
 

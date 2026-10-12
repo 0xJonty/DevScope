@@ -15,6 +15,8 @@ export interface DeployPrefill {
   name?: string;
   ticker?: string;
   description?: string;
+  twitter?: string;
+  website?: string;
   /** Existing narrative image (server path) used when no file is uploaded. */
   imagePath?: string | null;
   holderReward?: boolean;
@@ -59,9 +61,9 @@ export default function DeployForm({
   const [name, setName] = useState(prefill?.name ?? "");
   const [ticker, setTicker] = useState(prefill?.ticker ?? "");
   const [description, setDescription] = useState(prefill?.description ?? "");
-  const [twitter, setTwitter] = useState("");
+  const [twitter, setTwitter] = useState(prefill?.twitter ?? "");
   const [telegram, setTelegram] = useState("");
-  const [website, setWebsite] = useState("");
+  const [website, setWebsite] = useState(prefill?.website ?? "");
   const [devBuy, setDevBuy] = useState("0");
   const [holderReward, setHolderReward] = useState(prefill?.holderReward ?? false);
   const [vanity, setVanity] = useState(true);
