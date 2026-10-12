@@ -1,0 +1,11 @@
+{
+  "comment": "Token deployer (PLAN.md §7e). pin_backend: 'pumpfun' uses pump.fun's unofficial metadata upload endpoint, 'pinata' pins via Pinata (needs PINATA_JWT). Costs in SOL. create_cost_sol_estimate = rent + accounts headline shown in the pre-deploy confirm. vanity.pool_target keypairs ending in vanity.suffix are pre-ground in data/vanity/.",
+  "pin_backend": "pinata",
+  "compute_units": 500000,
+  "priority_fee_sol_default": 0.0005,
+  "slippage_pct_default": 10,
+  "dev_buy_sol_max": 10,
+  "create_cost_sol_estimate": 0.025,
+  "vanity": { "suffix": "pump", "pool_target": 1 },
+  "image_max_bytes": 5242880
+}

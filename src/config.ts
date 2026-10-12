@@ -66,6 +66,20 @@ const narrativeSchema = z.object({
   related_tweets_max: z.number().int().min(1).max(5),
 });
 
+const deploySchema = z.object({
+  pin_backend: z.enum(["pumpfun", "pinata"]),
+  compute_units: z.number().int().min(100000).max(1400000),
+  priority_fee_sol_default: z.number().min(0),
+  slippage_pct_default: z.number().min(0).max(50),
+  dev_buy_sol_max: z.number().min(0),
+  create_cost_sol_estimate: z.number().min(0),
+  vanity: z.object({
+    suffix: z.string().min(1).max(5),
+    pool_target: z.number().int().min(0).max(5),
+  }),
+  image_max_bytes: z.number().int().min(1),
+});
+
 const providersSchema = z.object({
   providers: z.record(
     z.string(),
@@ -97,6 +111,7 @@ export const filters = loadJson("config/filters.json", filtersSchema);
 export const scanDefaults = loadJson("config/scan-defaults.json", scanDefaultsSchema);
 export const providerConfig = loadJson("config/providers.json", providersSchema);
 export const narrativeConfig = loadJson("config/narrative.json", narrativeSchema);
+export const deployConfig = loadJson("config/deploy.json", deploySchema);
 
 export const config = {
   root: ROOT,
@@ -110,17 +125,27 @@ export const config = {
   grokAuthMode: (process.env.GROK_AUTH_MODE ?? "subscription") as "subscription" | "api_key",
   /** Scrapling MCP binary for Layer B link fetching (null = WebFetch-only, loud warn). */
   scraplingMcpCommand: process.env.SCRAPLING_MCP_COMMAND?.trim() || null,
+  /** Solana RPC for the token deployer (balance / simulate / send / confirm).
+   * Public mainnet works but throttles sendTransaction — free Helius key recommended. */
+  solanaRpcUrl: process.env.SOLANA_RPC_URL?.trim() || "https://api.mainnet-beta.solana.com",
 };
 
 /** Keys are validated lazily at the point of use so keyless features still run. */
 export function requireEnv(
-  variable: "SOLANA_TRACKER_API_KEY" | "BITQUERY_API_KEY" | "ANTHROPIC_API_KEY" | "XAI_API_KEY"
+  variable:
+    | "SOLANA_TRACKER_API_KEY"
+    | "BITQUERY_API_KEY"
+    | "ANTHROPIC_API_KEY"
+    | "XAI_API_KEY"
+    | "PINATA_JWT"
 ): string {
   const hints: Record<string, string> = {
     SOLANA_TRACKER_API_KEY: "free key at https://www.solanatracker.io/data-api",
     BITQUERY_API_KEY: "create an access token at https://account.bitquery.io",
     ANTHROPIC_API_KEY: "only needed when AUTH_MODE=api_key",
     XAI_API_KEY: "only needed when GROK_AUTH_MODE=api_key — create at https://console.x.ai",
+    PINATA_JWT:
+      "only needed when config/deploy.json pin_backend=pinata — free JWT at https://app.pinata.cloud",
   };
   const value = process.env[variable];
   if (!value || value.trim() === "") {
