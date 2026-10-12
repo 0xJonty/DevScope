@@ -164,6 +164,52 @@ export const narrativeTokens = sqliteTable("narrative_tokens", {
   imagePath: text("image_path"),
 });
 
+export type DeploymentStatus =
+  | "pending"
+  | "pinning"
+  | "building"
+  | "sending"
+  | "confirming"
+  | "confirmed"
+  | "failed"
+  | "dry_run_ok";
+
+export interface DeployParams {
+  name: string;
+  ticker: string;
+  description: string;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+  devBuySol: number;
+  slippagePct: number;
+  priorityFeeSol: number;
+  holderReward: boolean;
+  dryRun: boolean;
+}
+
+/** Token deploys (PLAN.md §7e) — one row per attempt, single atomic tx, no
+ * resume (a failed deploy is retried as a new row). Deployed tokens NEVER
+ * enter `tokens` — they'd skew the deployer stats this tool exists to study.
+ * A `confirming` row with a signature is reconciled against the chain on read
+ * and on boot (a confirm timeout is not a failure — the tx may have landed). */
+export const deployments = sqliteTable("deployments", {
+  id: text("id").primaryKey(),
+  /** Mint pubkey — set once a keypair is taken (vanity pool or random). */
+  mint: text("mint"),
+  /** Set when launched from a narrative token's deploy modal. */
+  narrativeTokenId: text("narrative_token_id"),
+  status: text("status").notNull().$type<DeploymentStatus>(),
+  statusReason: text("status_reason"),
+  params: text("params", { mode: "json" }).$type<DeployParams>().notNull(),
+  metadataUri: text("metadata_uri"),
+  imagePath: text("image_path"),
+  signature: text("signature"),
+  vanity: integer("vanity", { mode: "boolean" }).notNull(),
+  createdAt: integer("created_at").notNull(),
+  finishedAt: integer("finished_at"),
+});
+
 export const theses = sqliteTable(
   "theses",
   {

@@ -43,6 +43,13 @@
       "when": 1791769092152,
       "tag": "0005_equal_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791773488709,
+      "tag": "0006_brainy_galactus",
+      "breakpoints": true
     }
   ]
 }
