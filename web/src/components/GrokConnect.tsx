@@ -67,11 +67,17 @@ export default function GrokConnect({
 
   if (status.loggedIn) {
     if (!showWhenConnected) return null;
+    const who = status.account?.name ?? status.account?.email ?? null;
     return (
       <div className="flex items-center gap-3 text-sm">
         <span className="text-worked">
           {status.authMode === "api_key" ? "connected (API key)" : "connected (subscription)"}
         </span>
+        {who && (
+          <span className="text-dim" title={status.account?.email ?? undefined}>
+            {who}
+          </span>
+        )}
         {status.authMode === "subscription" && (
           <button onClick={disconnect} className="text-dim text-xs hover:text-failed">
             Disconnect

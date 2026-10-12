@@ -19,7 +19,7 @@ import {
   getNarrativeScan,
   startNarrativeScan,
 } from "../pipeline/narrative-scan.js";
-import { grokLoggedIn, grokLogout, startGrokDeviceLogin } from "../providers/grok.js";
+import { grokAccount, grokLoggedIn, grokLogout, startGrokDeviceLogin } from "../providers/grok.js";
 import { scanEvents } from "../pipeline/events.js";
 import { classify } from "../pipeline/s2-score.js";
 import { STAGE_LABELS, STAGES } from "../pipeline/types.js";
@@ -293,15 +293,20 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   let grokLoginError: string | null = null;
   let grokLoginPending = false;
 
-  app.get("/api/grok/status", async () => ({
-    authMode: config.grokAuthMode,
-    loggedIn: config.grokAuthMode === "api_key" ? Boolean(process.env.XAI_API_KEY) : grokLoggedIn(),
-    loginPending: grokLoginPending,
-    loginError: grokLoginError,
-    model: narrativeConfig.grok.model,
-    windowDaysDefault: narrativeConfig.window_days_default,
-    windowDaysMax: narrativeConfig.window_days_max,
-  }));
+  app.get("/api/grok/status", async () => {
+    const subscription = config.grokAuthMode === "subscription";
+    return {
+      authMode: config.grokAuthMode,
+      loggedIn: subscription ? grokLoggedIn() : Boolean(process.env.XAI_API_KEY),
+      // Userinfo is fetched once post-login and cached on the token store.
+      account: subscription ? await grokAccount() : null,
+      loginPending: grokLoginPending,
+      loginError: grokLoginError,
+      model: narrativeConfig.grok.model,
+      windowDaysDefault: narrativeConfig.window_days_default,
+      windowDaysMax: narrativeConfig.window_days_max,
+    };
+  });
 
   app.post("/api/grok/login", async (_req, reply) => {
     if (config.grokAuthMode === "api_key") {

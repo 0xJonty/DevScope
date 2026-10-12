@@ -39,17 +39,25 @@ export class GrokApiError extends Error {
 
 // ── Token store ───────────────────────────────────────────────────────────
 
+export interface GrokAccount {
+  name: string | null;
+  email: string | null;
+}
+
 interface GrokTokens {
   access_token: string;
   refresh_token: string;
   /** ms epoch when access_token expires. */
   expires_at: number;
+  /** OIDC userinfo snapshot of the linked X/xAI account (fetched post-login). */
+  account?: GrokAccount;
 }
 
 const tokenStoreSchema = z.object({
   access_token: z.string().min(1),
   refresh_token: z.string().min(1),
   expires_at: z.number(),
+  account: z.object({ name: z.string().nullable(), email: z.string().nullable() }).optional(),
 });
 
 const tokenPath = () => join(config.dataDir, "grok-auth.json");
@@ -82,6 +90,7 @@ export function grokLoggedIn(): boolean {
 const discoverySchema = z.object({
   token_endpoint: z.string().url(),
   device_authorization_endpoint: z.string().url(),
+  userinfo_endpoint: z.string().url().optional(),
 });
 
 async function discover(): Promise<z.infer<typeof discoverySchema>> {
@@ -111,14 +120,49 @@ const tokenResponseSchema = z.object({
   expires_in: z.number().optional(),
 });
 
-function toStoredTokens(payload: z.infer<typeof tokenResponseSchema>, fallbackRefresh?: string): GrokTokens {
-  const refresh = payload.refresh_token ?? fallbackRefresh;
+function toStoredTokens(
+  payload: z.infer<typeof tokenResponseSchema>,
+  previous?: Pick<GrokTokens, "refresh_token" | "account"> | null
+): GrokTokens {
+  const refresh = payload.refresh_token ?? previous?.refresh_token;
   if (!refresh) throw new GrokApiError("token response carried no refresh_token");
   return {
     access_token: payload.access_token,
     refresh_token: refresh,
     expires_at: Date.now() + (payload.expires_in ?? 3600) * 1000,
+    ...(previous?.account ? { account: previous.account } : {}),
   };
+}
+
+/** OIDC userinfo → linked X/xAI account identity, persisted on the token
+ * store. Best-effort: identity display must never break auth, so failures
+ * return null and are retried on the next status read. */
+async function fetchAndStoreAccount(tokens: GrokTokens): Promise<GrokAccount | null> {
+  try {
+    const discovery = await discover();
+    if (!discovery.userinfo_endpoint) return null;
+    const res = await fetch(discovery.userinfo_endpoint, {
+      headers: { authorization: `Bearer ${tokens.access_token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return null;
+    const info = z
+      .looseObject({ name: z.string().optional(), email: z.string().optional() })
+      .parse(await res.json());
+    const account: GrokAccount = { name: info.name ?? null, email: info.email ?? null };
+    saveTokens({ ...tokens, account });
+    return account;
+  } catch {
+    return null;
+  }
+}
+
+/** Linked account identity for the UI; fetches + caches it once per login. */
+export async function grokAccount(): Promise<GrokAccount | null> {
+  const tokens = loadTokens();
+  if (!tokens) return null;
+  if (tokens.account) return tokens.account;
+  return fetchAndStoreAccount(tokens);
 }
 
 export interface DeviceLogin {
@@ -166,7 +210,9 @@ export async function startGrokDeviceLogin(): Promise<DeviceLogin> {
         device_code: payload.device_code,
       });
       if (poll.ok) {
-        saveTokens(toStoredTokens(tokenResponseSchema.parse(await poll.json())));
+        const tokens = toStoredTokens(tokenResponseSchema.parse(await poll.json()));
+        saveTokens(tokens);
+        await fetchAndStoreAccount(tokens);
         return;
       }
       const body = (await poll.text()).slice(0, 300);
@@ -198,7 +244,7 @@ async function refreshTokens(current: GrokTokens): Promise<GrokTokens> {
     }
     throw new GrokApiError(`token refresh failed: HTTP ${res.status}`, res.status);
   }
-  const next = toStoredTokens(tokenResponseSchema.parse(await res.json()), current.refresh_token);
+  const next = toStoredTokens(tokenResponseSchema.parse(await res.json()), current);
   saveTokens(next);
   return next;
 }

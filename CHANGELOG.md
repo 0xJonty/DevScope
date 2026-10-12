@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.12.2] — 2026-10-12 (linked account name + live verification)
+
+### Added
+- Grok connection status now shows the linked X account's name (OIDC `userinfo` — fetched once post-login, cached on the token store, email in the hover title). Surfaced in Settings and anywhere `GrokConnect` renders connected state; `/api/grok/status` gains `account`.
+
+### Changed
+- PLAN.md §16 Grok items verified live with an X Premium login: OAuth allowlist passes, `api.x.ai/v1/responses` accepts the subscription bearer, `x_search` multi-round search + citations confirmed end-to-end (`verify-grok-narrative.ts` green).
+
 ## [0.12.1] — 2026-10-12 (Grok connection in Settings)
 
 ### Added

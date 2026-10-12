@@ -198,6 +198,8 @@ export interface NarrativeScanInfo {
 export interface GrokStatus {
   authMode: "subscription" | "api_key";
   loggedIn: boolean;
+  /** Linked X/xAI account (OIDC userinfo); null in api_key mode or pre-fetch. */
+  account: { name: string | null; email: string | null } | null;
   loginPending: boolean;
   loginError: string | null;
   model: string;
