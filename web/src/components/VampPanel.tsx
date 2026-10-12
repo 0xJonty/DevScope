@@ -17,8 +17,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_STYLES: Record<string, string> = {
-  vamped_another: "text-worked border-worked/40",
-  pvp_won: "text-worked border-worked/40",
+  vamped_another: "text-success border-success/40",
+  pvp_won: "text-success border-success/40",
   got_vamped: "text-failed border-failed/40",
   pvp_no_winner: "text-mid border-mid/40",
   no_vamp_found: "text-dim border-line",
@@ -196,7 +196,7 @@ export default function VampPanel({ mint, autostart = false }: { mint: string; a
               <ul className="mt-1.5 space-y-1">
                 {j.evidence.map((e, i) => (
                   <li key={i} className="text-xs text-dim">
-                    <span className={e.found ? "text-worked" : "text-faint"}>{e.found ? "✓" : "✗"}</span> {e.claim}
+                    <span className={e.found ? "text-success" : "text-faint"}>{e.found ? "✓" : "✗"}</span> {e.claim}
                     {e.source_url && e.found && (
                       <a href={e.source_url} target="_blank" rel="noreferrer" className="text-accent hover:underline ml-1">
                         source

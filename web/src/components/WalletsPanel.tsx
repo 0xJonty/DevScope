@@ -120,7 +120,7 @@ export default function WalletsPanel() {
                 >
                   {short(w.pubkey)}
                 </button>
-                <span className={`ml-auto ${w.balanceSol > 0 ? "text-worked" : "text-faint"}`}>
+                <span className={`ml-auto ${w.balanceSol > 0 ? "text-success" : "text-faint"}`}>
                   {w.balanceSol.toFixed(4)} SOL
                 </span>
                 <button onClick={() => void remove(w)} className="text-faint hover:text-failed text-xs" title="Remove wallet">
@@ -166,7 +166,7 @@ export default function WalletsPanel() {
         <div className="flex items-center gap-3">
           {sessionSet ? (
             <>
-              <span className="text-worked text-sm">session set</span>
+              <span className="text-success text-sm">session set</span>
               <button onClick={() => void clearSession()} className="text-faint hover:text-failed text-xs">
                 clear
               </button>

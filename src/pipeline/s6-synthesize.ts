@@ -42,9 +42,9 @@ export async function runS6(ctx: ScanCtx): Promise<void> {
     },
     fingerprint: fingerprint as unknown as Record<string, unknown>,
     bands: {
-      worked:
-        bands.worked_mode === "ath_usd"
-          ? `ath_usd >= ${bands.worked_min_ath_usd}`
+      success:
+        bands.success_mode === "ath_usd"
+          ? `ath_usd >= ${bands.success_min_ath_usd}`
           : "bonded == true",
       mid_min_ath_usd: bands.mid_min_ath_usd,
     },

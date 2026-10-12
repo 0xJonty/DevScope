@@ -997,8 +997,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     scanDefaults,
     bands: {
       bands_version: bands.bands_version,
-      worked_mode: bands.worked_mode,
-      worked_min_ath_usd: bands.worked_min_ath_usd,
+      success_mode: bands.success_mode,
+      success_min_ath_usd: bands.success_min_ath_usd,
       mid_min_ath_usd: bands.mid_min_ath_usd,
     },
     bandDefaults: BAND_DEFAULTS,
@@ -1016,16 +1016,16 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   /** Persist new band values to config/bands.json (patch-bumping
    * bands_version) and keep the running process consistent with the file. */
   const writeBands = (next: {
-    worked_mode: "bonded" | "ath_usd";
-    worked_min_ath_usd: number;
+    success_mode: "bonded" | "ath_usd";
+    success_min_ath_usd: number;
     mid_min_ath_usd: number;
   }): string => {
     const path = resolve(config.root, "config/bands.json");
     const file = JSON.parse(readFileSync(path, "utf8"));
     const [maj, min, patch] = String(file.bands_version).split(".").map(Number);
     file.bands_version = `${maj}.${min}.${(patch ?? 0) + 1}`;
-    file.worked_mode = next.worked_mode;
-    file.worked_min_ath_usd = next.worked_min_ath_usd;
+    file.success_mode = next.success_mode;
+    file.success_min_ath_usd = next.success_min_ath_usd;
     file.mid_min_ath_usd = next.mid_min_ath_usd;
     writeFileSync(path, JSON.stringify(file, null, 2) + "\n");
     Object.assign(bands, next, { bands_version: file.bands_version });
@@ -1033,8 +1033,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   };
 
   const bandsBody = z.object({
-    worked_mode: z.enum(["bonded", "ath_usd"]),
-    worked_min_ath_usd: z.number().positive("WORKED threshold must be a positive number"),
+    success_mode: z.enum(["bonded", "ath_usd"]),
+    success_min_ath_usd: z.number().positive("SUCCESS threshold must be a positive number"),
     mid_min_ath_usd: z.number().positive("MID threshold must be a positive number"),
   });
 
@@ -1042,10 +1042,10 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const body = bandsBody.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: zodMsg(body.error) });
     const b = body.data;
-    if (b.worked_mode === "ath_usd" && b.worked_min_ath_usd <= b.mid_min_ath_usd) {
+    if (b.success_mode === "ath_usd" && b.success_min_ath_usd <= b.mid_min_ath_usd) {
       return reply
         .code(400)
-        .send({ error: "WORKED threshold must be higher than the MID threshold" });
+        .send({ error: "SUCCESS threshold must be higher than the MID threshold" });
     }
     return { ok: true, bands_version: writeBands(b) };
   });

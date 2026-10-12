@@ -27,7 +27,7 @@ const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 const EVENT_COLORS: Record<string, string> = {
   error: "text-failed",
-  done: "text-worked",
+  done: "text-success",
   stage: "text-ink",
   log: "text-faint",
 };
@@ -280,7 +280,7 @@ export default function DeployForm({
                   >
                     {short(selectedWallet.pubkey)}
                   </button>
-                  <span className={selectedWallet.balanceSol > 0 ? "text-worked" : "text-failed"}>
+                  <span className={selectedWallet.balanceSol > 0 ? "text-success" : "text-failed"}>
                     {selectedWallet.balanceSol.toFixed(4)} SOL
                   </span>
                 </>
@@ -567,8 +567,8 @@ export default function DeployForm({
           {phase === "finished" && result && (
             <div className="space-y-3">
               {result.status === "confirmed" && result.mint && (
-                <div className="border border-worked/40 rounded-md px-4 py-3 text-sm space-y-1">
-                  <p className="text-worked font-medium">Deployed</p>
+                <div className="border border-success/40 rounded-md px-4 py-3 text-sm space-y-1">
+                  <p className="text-success font-medium">Deployed</p>
                   {result.statusReason && <p className="text-mid text-xs">{result.statusReason}</p>}
                   <p className="font-mono text-xs text-dim break-all">{result.mint}</p>
                   <p className="text-xs space-x-3">
@@ -583,7 +583,7 @@ export default function DeployForm({
                 </div>
               )}
               {result.status === "dry_run_ok" && (
-                <p className="text-worked text-sm">Dry run clean — the transaction simulates. Nothing was sent.</p>
+                <p className="text-success text-sm">Dry run clean — the transaction simulates. Nothing was sent.</p>
               )}
               {result.status === "failed" && (
                 <p className="text-failed text-sm">{result.statusReason ?? "deploy failed"}</p>

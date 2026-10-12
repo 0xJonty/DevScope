@@ -351,8 +351,8 @@ export interface DeployRequest {
 }
 
 export interface BandSettings {
-  worked_mode: "bonded" | "ath_usd";
-  worked_min_ath_usd: number;
+  success_mode: "bonded" | "ath_usd";
+  success_min_ath_usd: number;
   mid_min_ath_usd: number;
 }
 
@@ -391,7 +391,7 @@ export interface Fingerprint {
   peakHourUtc: number | null;
   inferredTimezoneGuess: string | null;
   bondRate: number;
-  counts: { worked: number; mid: number; failed: number; total: number };
+  counts: { success: number; mid: number; failed: number; total: number };
   athUsd: { median: number | null; p90: number | null; max: number | null };
   namingPatterns: Record<string, number>;
   lifespanHours: { median: number | null; p90: number | null };

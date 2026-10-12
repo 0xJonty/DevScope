@@ -67,7 +67,7 @@ export default function ProfileView({
 
   const fp = profile.fingerprint;
   const career = profile.theses.filter((t) => t.classification === "pinned");
-  const worked = profile.theses.filter((t) => t.classification === "worked");
+  const success = profile.theses.filter((t) => t.classification === "success");
   const mids = profile.theses.filter((t) => t.classification === "mid");
   const failures = profile.theses.filter((t) => t.classification === "failed");
   const naming = fp
@@ -106,7 +106,7 @@ export default function ProfileView({
           <StatTile
             label="Bond rate (window)"
             value={fp ? `${(fp.bondRate * 100).toFixed(1)}%` : "—"}
-            sub={fp ? `${fp.counts.worked}/${fp.counts.total} bonded` : undefined}
+            sub={fp ? `${fp.counts.success}/${fp.counts.total} bonded` : undefined}
           />
           <StatTile label="Deploys / day" value={fp ? String(fp.deploysPerDay) : "—"} sub={fp ? `${fp.windowDays}d window` : undefined} />
           <StatTile
@@ -163,7 +163,7 @@ export default function ProfileView({
       {(profile.sections.works || profile.sections.fails) && (
         <section className="grid grid-cols-2 gap-4">
           <div className="border border-line rounded-lg px-5 py-4 space-y-2">
-            <h2 className="text-sm font-medium text-worked">What works for them</h2>
+            <h2 className="text-sm font-medium text-success">What works for them</h2>
             {profile.sections.works && <Prose md={profile.sections.works} />}
           </div>
           <div className="border border-line rounded-lg px-5 py-4 space-y-2">
@@ -174,7 +174,7 @@ export default function ProfileView({
       )}
 
       <ThesisGroup title={`Career deploys — all-time tops (${career.length})`} items={career} onVamp={openVamp} />
-      <ThesisGroup title={`Bonded in window (${worked.length})`} items={worked} onVamp={openVamp} />
+      <ThesisGroup title={`Bonded in window (${success.length})`} items={success} onVamp={openVamp} />
       <ThesisGroup title={`Almost made it (${mids.length})`} items={mids} onVamp={openVamp} />
       <ThesisGroup title={`Representative failures (${failures.length})`} items={failures} onVamp={openVamp} />
 

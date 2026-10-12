@@ -16,7 +16,7 @@
 // vamp PvP analysis, no-fluff style rule.
 // v1.1.0 (2026-10-05): token image attached inline as a content block instead
 // of a Read path (user-level hooks blocked Read inside SDK sessions).
-export const THESIS_PROMPT_VERSION = "thesis-v1.4.0";
+export const THESIS_PROMPT_VERSION = "thesis-v1.4.1";
 
 export interface ThesisDossier {
   mint: string;
@@ -39,9 +39,9 @@ export interface ThesisDossier {
 export function buildThesisPrompt(dossier: ThesisDossier): string {
   const { image_path, ...data } = dossier;
   const outcomeQuestion = data.bonded
-    ? "why this deploy worked — what made people buy it"
+    ? "why this deploy succeeded — what made people buy it"
     : data.classification === "mid"
-      ? "why this deploy almost worked and what stopped it short of graduation"
+      ? "why this deploy almost succeeded and what stopped it short of graduation"
       : "why nobody bought this deploy — what killed it";
   return `You are analyzing one pump.fun token deployed by a wallet under study. This is a deploy post-mortem, not trade advice: explain ${outcomeQuestion}. The answer is not always logical — a strong narrative can lose to a better ticker, and a zero-effort deploy can run on timing alone.
 

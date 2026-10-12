@@ -12,7 +12,7 @@ import DeployModal from "../components/DeployModal";
 import GrokConnect from "../components/GrokConnect";
 
 const STATUS_STYLES: Record<string, string> = {
-  done: "text-worked border-worked/40",
+  done: "text-success border-success/40",
   failed: "text-failed border-failed/40",
   paused: "text-mid border-mid/40",
   running: "text-accent border-accent/40",

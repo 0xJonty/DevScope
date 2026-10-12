@@ -16,7 +16,7 @@ export interface ProfileMeta {
     best_mint: string | null;
     best_at: string | null;
   };
-  tokensAnalyzed: { worked: number; mid: number; failed: number; dossier_count: number };
+  tokensAnalyzed: { success: number; mid: number; failed: number; dossier_count: number };
   bandsVersion: string;
   promptVersions: { thesis: string; synthesis: string };
   dataProviders: string[];
@@ -44,7 +44,7 @@ function fingerprintTable(fp: Fingerprint): string {
     `| Deploys/day | ${fp.deploysPerDay} |`,
     `| Median gap between deploys | ${fp.medianGapMinutes == null ? "—" : Math.round(fp.medianGapMinutes) + " min"} |`,
     `| Active hours | ${activeStr} |`,
-    `| Bond rate | ${(fp.bondRate * 100).toFixed(1)}% (${fp.counts.worked}/${fp.counts.total}) |`,
+    `| Bond rate | ${(fp.bondRate * 100).toFixed(1)}% (${fp.counts.success}/${fp.counts.total}) |`,
     `| ATH distribution | median ${usd(fp.athUsd.median)} · p90 ${usd(fp.athUsd.p90)} · max ${usd(fp.athUsd.max)} |`,
     `| Token lifespan (hours) | median ${fp.lifespanHours.median?.toFixed(1) ?? "—"} · p90 ${fp.lifespanHours.p90?.toFixed(1) ?? "—"} |`,
     `| Cashback coins | ${fp.cashbackShare == null ? "—" : (fp.cashbackShare * 100).toFixed(1) + "%"} |`,
@@ -101,9 +101,9 @@ export function renderProfile(
     `updated_at: ${meta.updatedAt}`,
     `window: { n: ${meta.window.n}, from: ${meta.window.from ?? "null"}, to: ${meta.window.to ?? "null"} }`,
     `lifetime: { total_deploys: ${meta.lifetime.total_deploys ?? "null"}, total_graduated: ${meta.lifetime.total_graduated ?? "null"}, best_ath_usd: ${meta.lifetime.best_ath_usd ?? "null"}, best_mint: ${meta.lifetime.best_mint ?? "null"}, best_at: ${meta.lifetime.best_at ?? "null"} }`,
-    `tokens_analyzed: { worked: ${meta.tokensAnalyzed.worked}, mid: ${meta.tokensAnalyzed.mid}, failed: ${meta.tokensAnalyzed.failed}, dossier_count: ${meta.tokensAnalyzed.dossier_count} }`,
+    `tokens_analyzed: { success: ${meta.tokensAnalyzed.success}, mid: ${meta.tokensAnalyzed.mid}, failed: ${meta.tokensAnalyzed.failed}, dossier_count: ${meta.tokensAnalyzed.dossier_count} }`,
     `bands_version: ${meta.bandsVersion}`,
-    `bands_worked: ${bands.worked_mode === "ath_usd" ? `ath_usd >= ${bands.worked_min_ath_usd}` : "bonded"}`,
+    `bands_success: ${bands.success_mode === "ath_usd" ? `ath_usd >= ${bands.success_min_ath_usd}` : "bonded"}`,
     `bands_mid_min_ath_usd: ${bands.mid_min_ath_usd}`,
     `prompt_version_thesis: ${meta.promptVersions.thesis}`,
     `prompt_version_synthesis: ${meta.promptVersions.synthesis}`,
@@ -118,7 +118,7 @@ export function renderProfile(
     `# Deployer patterns\n\n${synthesis.deployer_patterns_md}`,
     `# What works for them\n\n${synthesis.what_works_md}`,
     `# What fails for them\n\n${synthesis.what_fails_md}`,
-    section("Top deploys — theses", by("worked").concat(by("pinned"))),
+    section("Top deploys — theses", by("success").concat(by("pinned"))),
     section("Mid tier — theses", by("mid")),
     section("Representative failures — theses", by("failed")),
     `# Low-confidence notes / open questions\n\n${synthesis.open_questions_md}`,

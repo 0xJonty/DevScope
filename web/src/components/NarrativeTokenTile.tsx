@@ -4,13 +4,13 @@ import { Chip } from "./ThesisCard";
 /** Momentum is the one loud signal — glyph + color, everything else quiet. */
 export const MOMENTUM_STYLES: Record<string, { glyph: string; cls: string }> = {
   exploding: { glyph: "▲", cls: "text-accent border-accent/40" },
-  rising: { glyph: "↗", cls: "text-worked border-worked/40" },
+  rising: { glyph: "↗", cls: "text-success border-success/40" },
   peaking: { glyph: "→", cls: "text-mid border-mid/40" },
   fading: { glyph: "↘", cls: "text-faint border-line" },
 };
 
 export const CONFIDENCE_STYLES: Record<string, string> = {
-  high: "text-worked border-worked/40",
+  high: "text-success border-success/40",
   medium: "text-mid border-mid/40",
   low: "text-faint border-line",
 };
@@ -87,7 +87,7 @@ export default function NarrativeTokenTile({
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="ml-auto text-[11px] border border-worked/40 text-worked rounded-full px-2 py-0.5 hover:border-worked"
+            className="ml-auto text-[11px] border border-success/40 text-success rounded-full px-2 py-0.5 hover:border-success"
           >
             deployed ↗
           </a>

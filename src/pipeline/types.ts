@@ -13,7 +13,7 @@ export const STAGE_LABELS: Record<StageId, string> = {
   s7: "Store & index",
 };
 
-export type Classification = "worked" | "mid" | "failed";
+export type Classification = "success" | "mid" | "failed";
 
 export interface StageState {
   status: "pending" | "running" | "done";
@@ -28,7 +28,7 @@ export interface Fingerprint {
   peakHourUtc: number | null;
   inferredTimezoneGuess: string | null;
   bondRate: number;
-  counts: { worked: number; mid: number; failed: number; total: number };
+  counts: { success: number; mid: number; failed: number; total: number };
   athUsd: { median: number | null; p90: number | null; max: number | null };
   namingPatterns: Record<string, number>;
   lifespanHours: { median: number | null; p90: number | null };

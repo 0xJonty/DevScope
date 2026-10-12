@@ -215,7 +215,7 @@ export default function ScanView() {
             <span
               className={`text-xs px-2 py-0.5 rounded-full border ${
                 scan.status === "done"
-                  ? "text-worked border-worked/40"
+                  ? "text-success border-success/40"
                   : scan.status === "failed"
                     ? "text-failed border-failed/40"
                     : scan.status === "paused"
@@ -240,7 +240,7 @@ export default function ScanView() {
                   title={stage.label}
                   className={`text-xs px-2.5 py-1 rounded-md border ${
                     stage.status === "done"
-                      ? "border-worked/40 text-worked"
+                      ? "border-success/40 text-success"
                       : stage.status === "running"
                         ? "border-accent text-accent"
                         : "border-line text-faint"

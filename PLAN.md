@@ -106,16 +106,18 @@ On-chain history is immutable → cache forever. `tokens` table is permanent; a 
 
 ## 6. Classification (config: `config/bands.json`)
 
+Bands run failed → mid → success (renamed from worked → mid → failed ordering, 0.16.0 / bands 3.0.0).
+
 ```json
 {
-  "worked_mode": "bonded",          // "bonded" (default) | "ath_usd"
-  "worked_min_ath_usd": 100000,     // used when worked_mode = "ath_usd"
+  "success_mode": "bonded",          // "bonded" (default) | "ath_usd"
+  "success_min_ath_usd": 100000,     // used when success_mode = "ath_usd"
   "mid_min_ath_usd": 15000
 }
 ```
 
-- `worked_mode: "bonded"` (default): worked = bonded, mid = !bonded && ath_usd > mid_min, failed = the rest.
-- `worked_mode: "ath_usd"` (0.11.0): worked = ath_usd ≥ worked_min (bonded flag ignored), mid = ath_usd > mid_min, failed = the rest. worked_min must exceed mid_min.
+- `success_mode: "bonded"` (default): failed = the rest, mid = !bonded && ath_usd > mid_min, success = bonded.
+- `success_mode: "ath_usd"` (0.11.0): failed = the rest, mid = ath_usd > mid_min, success = ath_usd ≥ success_min (bonded flag ignored). success_min must exceed mid_min.
 
 All three values are user-editable in Settings; factory defaults live in `src/config.ts` (`BAND_DEFAULTS`) behind a reset button. Bands are config, not code — pump.fun's fee/graduation mechanics change frequently (Dynamic Fees V1 → Jan 2026 fee-sharing/cashback overhaul → Mar 2026 redirect cap). Every profile records the band definition used at scan time.
 
@@ -270,7 +272,7 @@ alias: <name or null>
 scanned_at / updated_at
 window: { n, from, to }
 lifetime: { total_deploys, best_ath_usd, best_mint, best_at }
-tokens_analyzed: { worked, mid, failed, dossier_count }
+tokens_analyzed: { success, mid, failed, dossier_count }
 bands_version / prompt_version / data_providers
 ---
 # Verdict            ← 3–5 line deployer description (style/trends, no stat recaps), pinned in UI
@@ -298,7 +300,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card, vamp panel with 🦇 start button). Individually scanned tokens only — deployer-scan dossiers never appear here.
 4b. **Dev-scan token page** (added 0.10.0) — 🦇 on a profile thesis card lands here and auto-starts the vamp scan (the button press is the consent; a plain page open never starts one). Token header + dev-scan thesis + vamp panel, back-link to the profile. Scoped under the deployer profile — not a Token Library entry.
 5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
-6. **Settings** — quota meters per provider, defaults, bands editor (worked mode + thresholds, reset to defaults, 0.11.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display, Grok connection panel (0.12.1: auth mode, model, connect/disconnect — same device-code flow as the scan page, shared `GrokConnect` component).
+6. **Settings** — quota meters per provider, defaults, bands editor (success mode + thresholds, reset to defaults, 0.11.0; bands renamed failed/mid/success 0.16.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display, Grok connection panel (0.12.1: auth mode, model, connect/disconnect — same device-code flow as the scan page, shared `GrokConnect` component).
 7. **Narrative X Scan** (added 0.12.0, token-concept rework 0.13.0) — optional focus prompt, freshness slider (24h–7d), related-tweets selector (1–5), Grok connect panel (device-code login inline when not connected), start → live feed (SSE), result as a grid of narrative-token tiles + collapsed filtered-out list.
 8. **Narratives** (added 0.12.0, reworked 0.13.0) — library of every tokenable narrative as its own token card (placeholder monogram image until image gen, name, $TICKER, momentum glyph, category/fee/confidence chips), grouped under scan-date separators; click → narrative token page (image, ticker/name, fee type + reason, narrative description, all viral posts linked, unknowns, scan meta).
 9. **Deploy** (added 0.14.0, reworked 0.15.0) — pump.fun launcher: wallet selector strip (main wallet default, balance, vanity pool state), full token form (pairing select, dev buy in quote units, holder-rewards gift-icon toggle, verified-charity picker with per-charity percentages), review → confirm with cost breakdown vs balance, dry-run button, SSE progress feed, recent-deploys list. Narrative tiles/pages get a deploy button opening the same form in a modal, prefilled from the narrative; deployed narratives show a pump.fun-linked chip. Settings gains a **Wallets** tab: import/remove deploy wallets (base58 or 64-byte JSON), set main, paste the pump.fun session for charity deploys.

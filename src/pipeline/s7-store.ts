@@ -58,7 +58,7 @@ export async function runS7(ctx: ScanCtx): Promise<void> {
         best_at: null,
       },
       tokensAnalyzed: {
-        worked: fingerprint.counts.worked,
+        success: fingerprint.counts.success,
         mid: fingerprint.counts.mid,
         failed: fingerprint.counts.failed,
         dossier_count: selection.length,

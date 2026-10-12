@@ -14,7 +14,7 @@
 // v1.1.0 (2026-10-05): dropped playbook_signals_md — the tool's purpose is
 // studying deploy styles as reference for the owner's own deploys, not
 // trade-signal generation.
-export const SYNTHESIS_PROMPT_VERSION = "synthesis-v1.3.0";
+export const SYNTHESIS_PROMPT_VERSION = "synthesis-v1.3.1";
 
 export interface SynthesisInput {
   wallet: string;
@@ -27,7 +27,7 @@ export interface SynthesisInput {
     best_mint: string | null;
   };
   fingerprint: Record<string, unknown>;
-  bands: { worked: string; mid_min_ath_usd: number };
+  bands: { success: string; mid_min_ath_usd: number };
   theses: Array<Record<string, unknown>>;
   prior_profile_md: string | null;
 }

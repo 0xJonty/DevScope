@@ -26,7 +26,7 @@ const NAMING_BUCKETS: Record<string, RegExp> = {
 };
 
 export function computeFingerprint(tokens: WindowToken[]): Fingerprint {
-  const counts = { worked: 0, mid: 0, failed: 0, total: tokens.length };
+  const counts = { success: 0, mid: 0, failed: 0, total: tokens.length };
   for (const t of tokens) {
     if (t.classification) counts[t.classification]++;
   }
@@ -71,7 +71,7 @@ export function computeFingerprint(tokens: WindowToken[]): Fingerprint {
     activeHoursUtc: hours,
     peakHourUtc: peak,
     inferredTimezoneGuess: tzGuess,
-    bondRate: counts.total ? Number((counts.worked / counts.total).toFixed(4)) : 0,
+    bondRate: counts.total ? Number((counts.success / counts.total).toFixed(4)) : 0,
     counts,
     athUsd: { median: median(aths), p90: percentile(aths, 90), max: aths.length ? Math.max(...aths) : null },
     namingPatterns: naming,

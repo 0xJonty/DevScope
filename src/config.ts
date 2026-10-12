@@ -17,15 +17,15 @@ export class MissingCredentialError extends Error {
 
 const bandsSchema = z.object({
   bands_version: z.string(),
-  worked_mode: z.enum(["bonded", "ath_usd"]),
-  worked_min_ath_usd: z.number(),
+  success_mode: z.enum(["bonded", "ath_usd"]),
+  success_min_ath_usd: z.number(),
   mid_min_ath_usd: z.number(),
 });
 
 /** Factory defaults for the Settings "reset to defaults" button. */
 export const BAND_DEFAULTS = {
-  worked_mode: "bonded",
-  worked_min_ath_usd: 100000,
+  success_mode: "bonded",
+  success_min_ath_usd: 100000,
   mid_min_ath_usd: 15000,
 } as const;
 

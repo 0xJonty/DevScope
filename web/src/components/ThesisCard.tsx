@@ -2,14 +2,16 @@ import { fmtUsd, shortWallet, type StructuredThesis } from "../api";
 import { BatIcon } from "./VampPanel";
 
 export const CLASS_STYLES: Record<string, string> = {
-  worked: "text-worked border-worked/40",
+  success: "text-success border-success/40",
   mid: "text-mid border-mid/40",
   failed: "text-failed border-failed/40",
   pinned: "text-accent border-accent/40",
+  // Legacy alias: pre-0.16.0 scans persisted "worked" in dossier selections.
+  worked: "text-success border-success/40",
 };
 
 const CONFIDENCE_STYLES: Record<string, string> = {
-  high: "text-worked",
+  high: "text-success",
   medium: "text-mid",
   low: "text-faint",
 };
@@ -37,8 +39,17 @@ export default function ThesisCard({ t, onVamp }: { t: StructuredThesis; onVamp?
             <span className="font-semibold text-sm ml-auto">{fmtUsd(t.athUsd)} ATH</span>
           </div>
           <div className="flex gap-1.5 mt-1.5 flex-wrap">
-            <Chip text={t.classification === "pinned" ? "career deploy" : t.classification} className={CLASS_STYLES[t.classification] ?? "text-dim border-line"} />
-            {t.bonded && <Chip text="bonded" className="text-worked border-worked/40" />}
+            <Chip
+              text={
+                t.classification === "pinned"
+                  ? "career deploy"
+                  : t.classification === "worked" // pre-0.16.0 rows
+                    ? "success"
+                    : t.classification
+              }
+              className={CLASS_STYLES[t.classification] ?? "text-dim border-line"}
+            />
+            {t.bonded && <Chip text="bonded" className="text-success border-success/40" />}
             {j?.narrative_category && <Chip text={j.narrative_category.replace(/_/g, " ")} />}
             {j?.timing && j.timing !== "n/a" && <Chip text={j.timing.replace(/_/g, " ")} />}
             {j?.confidence && (
@@ -62,7 +73,7 @@ export default function ThesisCard({ t, onVamp }: { t: StructuredThesis; onVamp?
               <ul className="mt-1.5 space-y-1">
                 {j.evidence.map((e, i) => (
                   <li key={i} className="text-xs text-dim">
-                    <span className={e.found ? "text-worked" : "text-faint"}>{e.found ? "✓" : "✗"}</span> {e.claim}
+                    <span className={e.found ? "text-success" : "text-faint"}>{e.found ? "✓" : "✗"}</span> {e.claim}
                     {e.source_url && e.found && (
                       <a href={e.source_url} target="_blank" rel="noreferrer" className="text-accent hover:underline ml-1">
                         source

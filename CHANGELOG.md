@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-10-12 (band rename: failed → mid → success)
+
+### Changed
+- Classification band keywords renamed **worked → mid → failed** to **failed → mid → success** everywhere: `Classification` type, `config/bands.json` (`success_mode`/`success_min_ath_usd`, bands 3.0.0), Settings API + editor labels, fingerprint counts, dossier/profile meta (`tokens_analyzed.success`, `bands_success`), scan feed messages, and the UI's semantic color token (`--color-worked` → `--color-success`, `text-worked` → `text-success` across every view). Prompts updated to the new vocabulary (`thesis-v1.4.1`, `synthesis-v1.3.1`).
+- Pre-0.16.0 rows that persisted the literal `worked` (old scans' dossier selections) render as `success` via a legacy alias in the UI; old profiles keep their recorded `bands_version`.
+
 ## [0.15.0] — 2026-10-12 (deployer rework: wallets, pairing, charities)
 
 ### Added

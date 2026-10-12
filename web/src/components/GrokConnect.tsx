@@ -70,7 +70,7 @@ export default function GrokConnect({
     const who = status.account?.name ?? status.account?.email ?? null;
     return (
       <div className="flex items-center gap-3 text-sm">
-        <span className="text-worked">
+        <span className="text-success">
           {status.authMode === "api_key" ? "connected (API key)" : "connected (subscription)"}
         </span>
         {who && (

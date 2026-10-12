@@ -62,7 +62,7 @@ export async function runS3(ctx: ScanCtx): Promise<void> {
   }));
 
   const byClass = {
-    worked: cands.filter((c) => classify(c.bonded, c.athUsd) === "worked"),
+    success: cands.filter((c) => classify(c.bonded, c.athUsd) === "success"),
     mid: cands.filter((c) => classify(c.bonded, c.athUsd) === "mid"),
     failed: cands.filter((c) => classify(c.bonded, c.athUsd) === "failed"),
   };
@@ -168,6 +168,6 @@ export async function runS3(ctx: ScanCtx): Promise<void> {
   ctx.emit({
     type: "progress",
     stage: "s3",
-    message: `Dossier: ${selection.length} tokens (${selection.filter((s) => s.classification === "worked").length} worked, ${selection.filter((s) => s.classification === "mid").length} mid, ${selection.filter((s) => s.classification === "failed").length} failed, ${selection.filter((s) => s.classification === "pinned").length} pinned).`,
+    message: `Dossier: ${selection.length} tokens (${selection.filter((s) => s.classification === "success").length} success, ${selection.filter((s) => s.classification === "mid").length} mid, ${selection.filter((s) => s.classification === "failed").length} failed, ${selection.filter((s) => s.classification === "pinned").length} pinned).`,
   });
 }

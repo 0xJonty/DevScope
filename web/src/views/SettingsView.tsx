@@ -7,8 +7,8 @@ import WalletsPanel from "../components/WalletsPanel";
 export default function SettingsView() {
   const [tab, setTab] = useState<"general" | "wallets">("general");
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [workedMode, setWorkedMode] = useState<"bonded" | "ath_usd">("bonded");
-  const [workedMin, setWorkedMin] = useState<string>("");
+  const [successMode, setSuccessMode] = useState<"bonded" | "ath_usd">("bonded");
+  const [successMin, setSuccessMin] = useState<string>("");
   const [midMin, setMidMin] = useState<string>("");
   const [saved, setSaved] = useState<string | null>(null);
   const [bandsError, setBandsError] = useState<string | null>(null);
@@ -16,8 +16,8 @@ export default function SettingsView() {
 
   const applySettings = (s: Settings) => {
     setSettings(s);
-    setWorkedMode(s.bands.worked_mode);
-    setWorkedMin(String(s.bands.worked_min_ath_usd));
+    setSuccessMode(s.bands.success_mode);
+    setSuccessMin(String(s.bands.success_min_ath_usd));
     setMidMin(String(s.bands.mid_min_ath_usd));
   };
 
@@ -30,11 +30,11 @@ export default function SettingsView() {
   const validateBands = (): string | null => {
     const midErr = numberError(midMin, "MID threshold", { min: 1 });
     if (midErr) return midErr;
-    if (workedMode === "ath_usd") {
-      const workedErr = numberError(workedMin, "WORKED threshold", { min: 1 });
-      if (workedErr) return workedErr;
-      if (Number(workedMin) <= Number(midMin)) {
-        return "WORKED threshold must be higher than the MID threshold.";
+    if (successMode === "ath_usd") {
+      const successErr = numberError(successMin, "SUCCESS threshold", { min: 1 });
+      if (successErr) return successErr;
+      if (Number(successMin) <= Number(midMin)) {
+        return "SUCCESS threshold must be higher than the MID threshold.";
       }
     }
     return null;
@@ -47,8 +47,8 @@ export default function SettingsView() {
     if (err) return;
     try {
       const res = await api.setBands({
-        worked_mode: workedMode,
-        worked_min_ath_usd: Number(workedMin) || settings.bandDefaults.worked_min_ath_usd,
+        success_mode: successMode,
+        success_min_ath_usd: Number(successMin) || settings.bandDefaults.success_min_ath_usd,
         mid_min_ath_usd: Number(midMin),
       });
       setSaved(`Saved — bands now v${res.bands_version}`);
@@ -83,9 +83,9 @@ export default function SettingsView() {
   };
 
   const isDefault =
-    workedMode === settings.bandDefaults.worked_mode &&
+    successMode === settings.bandDefaults.success_mode &&
     Number(midMin) === settings.bandDefaults.mid_min_ath_usd &&
-    (workedMode === "bonded" || Number(workedMin) === settings.bandDefaults.worked_min_ath_usd);
+    (successMode === "bonded" || Number(successMin) === settings.bandDefaults.success_min_ath_usd);
 
   const inputCls =
     "bg-surface border border-line rounded-md px-3 py-1.5 text-sm w-32 focus:outline-none focus:border-accent";
@@ -121,18 +121,18 @@ export default function SettingsView() {
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-dim">Classification bands</h2>
         <p className="text-dim text-sm">
-          {workedMode === "bonded"
-            ? "worked = bonded · mid = not bonded, ATH above MID threshold · failed = the rest."
-            : "worked = ATH above WORKED threshold · mid = ATH above MID threshold · failed = the rest."}{" "}
+          {successMode === "bonded"
+            ? "failed = the rest · mid = not bonded, ATH above MID threshold · success = bonded."
+            : "failed = the rest · mid = ATH above MID threshold · success = ATH above SUCCESS threshold."}{" "}
           Version {settings.bands.bands_version}; every profile records the version it was scanned with.
         </p>
 
         <div className="flex items-center gap-3">
-          <label className="text-sm w-44" htmlFor="workedmode">WORKED means</label>
+          <label className="text-sm w-44" htmlFor="successmode">SUCCESS means</label>
           <select
-            id="workedmode"
-            value={workedMode}
-            onChange={(e) => setWorkedMode(e.target.value as "bonded" | "ath_usd")}
+            id="successmode"
+            value={successMode}
+            onChange={(e) => setSuccessMode(e.target.value as "bonded" | "ath_usd")}
             className="bg-surface border border-line rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-accent"
           >
             <option value="bonded">bonded (graduated)</option>
@@ -140,10 +140,10 @@ export default function SettingsView() {
           </select>
         </div>
 
-        {workedMode === "ath_usd" && (
+        {successMode === "ath_usd" && (
           <div className="flex items-center gap-3">
-            <label className="text-sm w-44" htmlFor="workedmin">WORKED threshold (ATH USD)</label>
-            <input id="workedmin" value={workedMin} onChange={(e) => setWorkedMin(e.target.value)} className={inputCls} />
+            <label className="text-sm w-44" htmlFor="successmin">SUCCESS threshold (ATH USD)</label>
+            <input id="successmin" value={successMin} onChange={(e) => setSuccessMin(e.target.value)} className={inputCls} />
           </div>
         )}
 
@@ -164,7 +164,7 @@ export default function SettingsView() {
           >
             Reset to defaults
           </button>
-          {saved && !bandsError && <span className="text-worked text-xs">{saved}</span>}
+          {saved && !bandsError && <span className="text-success text-xs">{saved}</span>}
         </div>
         {bandsError && <p className="text-failed text-xs">{bandsError}</p>}
       </section>
@@ -191,7 +191,7 @@ export default function SettingsView() {
         <h2 className="text-sm font-medium text-dim">Reasoning</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">
           <dt className="text-faint">Auth mode</dt>
-          <dd className={settings.authMode === "subscription" ? "text-worked" : "text-mid"}>{settings.authMode}</dd>
+          <dd className={settings.authMode === "subscription" ? "text-success" : "text-mid"}>{settings.authMode}</dd>
           <dt className="text-faint">Thesis prompt</dt>
           <dd className="font-mono text-xs self-center">{settings.promptVersions.thesis}</dd>
           <dt className="text-faint">Synthesis prompt</dt>
@@ -207,7 +207,7 @@ export default function SettingsView() {
         <h2 className="text-sm font-medium text-dim">Grok (Narrative X Scan)</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">
           <dt className="text-faint">Auth mode</dt>
-          <dd className={settings.grok.authMode === "subscription" ? "text-worked" : "text-mid"}>
+          <dd className={settings.grok.authMode === "subscription" ? "text-success" : "text-mid"}>
             {settings.grok.authMode}
           </dd>
           <dt className="text-faint">Model</dt>

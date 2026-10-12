@@ -56,7 +56,7 @@ export default function NarrativeTokenView({ id, back }: { id: string; back: () 
                 href={`https://pump.fun/coin/${detail.deployed.mint}`}
                 target="_blank"
                 rel="noreferrer"
-                className="ml-auto text-xs border border-worked/40 text-worked rounded-full px-2.5 py-1 hover:border-worked"
+                className="ml-auto text-xs border border-success/40 text-success rounded-full px-2.5 py-1 hover:border-success"
               >
                 deployed ↗
               </a>

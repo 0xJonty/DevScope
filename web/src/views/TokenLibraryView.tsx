@@ -104,7 +104,7 @@ export default function TokenLibraryView({ openToken }: { openToken: (mint: stri
             </div>
             <div className="flex items-center gap-1.5 mt-3">
               <Chip text={e.classification} className={CLASS_STYLES[e.classification] ?? "text-dim border-line"} />
-              {e.bonded && <Chip text="bonded" className="text-worked border-worked/40" />}
+              {e.bonded && <Chip text="bonded" className="text-success border-success/40" />}
               <span className="text-xs text-ink ml-auto">{fmtUsd(e.athUsd)} ATH</span>
               <span className="text-faint text-xs">· dev {shortWallet(e.wallet)}</span>
             </div>
