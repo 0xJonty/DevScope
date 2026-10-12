@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { narrativeConfig } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { GrokApiError, GrokAuthRequiredError, grokNarrativeSearch } from "../providers/grok.js";
-import { RateLimitPause, runAgentJson } from "../reasoning/agent.js";
+import { AgentOutputError, RateLimitPause, runAgentJson } from "../reasoning/agent.js";
 import { buildGrokTrendPrompt, buildNarrativePrompt, NARRATIVE_PROMPT_VERSION } from "../reasoning/prompts/narrative.js";
 import { narrativeReportJsonSchema, narrativeReportSchema, type NarrativeReport } from "../reasoning/schemas.js";
 import { scanEvents } from "./events.js";
@@ -88,23 +88,35 @@ async function executeNarrativeScan(id: string): Promise<void> {
     if (!scan.narratives) {
       emit({ type: "agent", message: "Structuring narratives (Claude)…" });
       const raw = scan.grokRaw!;
-      const report = await runAgentJson<NarrativeReport>(
-        buildNarrativePrompt({
-          userPrompt: scan.prompt,
-          windowDays: scan.windowDays,
-          relatedTweets: scan.relatedTweets,
-          grokText: raw.text,
-          citations: raw.citations,
-          grokModel: scan.grokModel ?? narrativeConfig.grok.model,
-        }),
-        narrativeReportSchema,
-        {
-          model: reasoningConfig.narrative_model,
-          maxTurns: reasoningConfig.max_turns_narrative,
-          jsonSchema: narrativeReportJsonSchema as unknown as Record<string, unknown>,
-          onActivity: (message) => emit({ type: "agent", message }),
-        }
-      );
+      const runStructuring = () =>
+        runAgentJson<NarrativeReport>(
+          buildNarrativePrompt({
+            userPrompt: scan.prompt,
+            windowDays: scan.windowDays,
+            relatedTweets: scan.relatedTweets,
+            grokText: raw.text,
+            citations: raw.citations,
+            grokModel: scan.grokModel ?? narrativeConfig.grok.model,
+          }),
+          narrativeReportSchema,
+          {
+            model: reasoningConfig.narrative_model,
+            maxTurns: reasoningConfig.max_turns_narrative,
+            jsonSchema: narrativeReportJsonSchema as unknown as Record<string, unknown>,
+            onActivity: (message) => emit({ type: "agent", message }),
+          }
+        );
+      let report: NarrativeReport;
+      try {
+        report = await runStructuring();
+      } catch (err) {
+        // The Grok report is cached, so one fresh structuring run is cheap —
+        // a single schema drift (observed live: an over-long ticker) must not
+        // fail the whole scan.
+        if (!(err instanceof AgentOutputError)) throw err;
+        emit({ type: "log", message: `Structuring output failed validation — retrying once. ${err.message.slice(0, 200)}` });
+        report = await runStructuring();
+      }
 
       // Mechanical URL gate: a key_post must exist in the Grok report or its
       // citation list — invented/repaired URLs are dropped loudly.

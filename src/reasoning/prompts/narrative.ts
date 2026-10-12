@@ -5,6 +5,9 @@
  * Agent SDK). Bump NARRATIVE_PROMPT_VERSION on any change that could shift
  * outputs; narrative scans record it.
  */
+// narrative-v1.1.1 (2026-10-12): ticker rule hardened after a live failure —
+// 2-10 chars (pump.fun limit) with an explicit compression rule for longer
+// phrases; length now also enforced by the structured-output JSON schema.
 // narrative-v1.1.0 (2026-10-12): tokenable-narrative rework. Scope locked to
 // politics / breaking news / trending memes (memes prioritized — underserved,
 // highest impact); sports and generic non-tokenable news excluded; search is
@@ -14,7 +17,7 @@
 // recommended fee type with reason, and a user-set count (1-5) of most-viral
 // posts. stale_dropped widened to cover non-tokenable drops.
 // narrative-v1.0.0 (2026-10-12): initial version.
-export const NARRATIVE_PROMPT_VERSION = "narrative-v1.1.0";
+export const NARRATIVE_PROMPT_VERSION = "narrative-v1.1.1";
 
 /** N1 — what Grok researches on X. The x_search tool rides along scoped to
  * [from_date, to_date); the prose restates the window because date params are
@@ -75,7 +78,7 @@ TASK:
 1. Split the report into discrete narratives — one entry per genuinely distinct story/trend/meme. Merge duplicate angles on the same story into one narrative.
 2. Tokenability filter: keep only narratives that work as a memecoin — a specific word, name, image, or moment the crowd is riffing on. Drop to stale_dropped (with reason) anything that is sports, routine corporate/headline news, or a story with no rifferable symbol. Also drop stale items: older than ${windowLabel} with no dated in-window development, or undatable from the report.
 3. For each kept narrative, design the token:
-   - ticker: the canonical word/phrase of the moment, UPPERCASE, 2-12 chars, spelled EXACTLY as the crowd spells it (the report's spelling is ground truth — launch-window fights are decided by canonical spelling, never "improve" it). No $ prefix.
+   - ticker: the canonical word of the moment, UPPERCASE, 2-10 characters HARD LIMIT (pump.fun's), no $ prefix, spelled EXACTLY as the crowd spells it (the report's spelling is ground truth — launch-window fights are decided by canonical spelling, never "improve" it). When the canonical phrase is longer than 10 characters, compress to the strongest single word or the abbreviation the crowd already uses — never truncate mid-word.
    - token_name: the narrative's canonical phrasing as a pump.fun display name — what a buyer scanning the feed instantly recognizes.
    - fee_type + fee_reason (one line): creator_fees = the default engine, fits fast breaking-news plays where speed beats mechanics; holder_rewards = community/identity narratives where holding IS the point (pride, "we" stories, long-running memes); fee_share = narratives centered on a real person/account who could plausibly be gifted the fee share — the alignment is the signal; charity = disaster/cause/sympathy narratives where a charity flag completes the story.
 4. key_posts: exactly ${opts.relatedTweets} post(s) per narrative, most viral first. Every URL MUST appear verbatim in the report or the citation list — never invent, repair, or extend a URL. Prefer x.com/<handle>/status/<id> post links; if the report carries fewer than ${opts.relatedTweets} usable URLs for a narrative, include what exists — never pad with invented links.

@@ -157,8 +157,17 @@ export const NARRATIVE_FEE_TYPES = ["creator_fees", "holder_rewards", "fee_share
 export const narrativeSchema = z.object({
   title: z.string().min(2),
   summary: z.string().min(40),
-  ticker: z.string().min(2).max(12),
-  token_name: z.string().min(2).max(40),
+  /** Normalized before validation ($ stripped, uppercased, trimmed) — the
+   * JSON schema pins generation to 10 chars; zod allows 12 as headroom so a
+   * near-miss never fails the whole report. */
+  ticker: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().replace(/^\$+/, "").replace(/\s+/g, "").toUpperCase() : v),
+    z.string().min(2).max(12)
+  ),
+  token_name: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim() : v),
+    z.string().min(2).max(48)
+  ),
   fee_type: z.enum(NARRATIVE_FEE_TYPES),
   fee_reason: z.string(),
   category: z.enum([
@@ -212,11 +221,16 @@ export const narrativeReportJsonSchema = {
           },
           ticker: {
             type: "string",
-            description: "Optimal token ticker: the canonical word/phrase of the moment, 2-12 chars, UPPERCASE, spelled exactly as the crowd spells it",
+            minLength: 2,
+            maxLength: 10,
+            description:
+              "Optimal token ticker: the canonical word of the moment, 2-10 chars (pump.fun limit), UPPERCASE, no $ prefix, spelled exactly as the crowd spells it — a longer phrase compresses to the strongest word/abbreviation the crowd already uses",
           },
           token_name: {
             type: "string",
-            description: "Optimal token display name (pump.fun name field): the narrative's canonical phrasing",
+            minLength: 2,
+            maxLength: 40,
+            description: "Optimal token display name (pump.fun name field): the narrative's canonical phrasing, max 40 chars",
           },
           fee_type: {
             type: "string",

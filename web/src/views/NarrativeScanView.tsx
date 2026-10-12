@@ -176,12 +176,13 @@ export default function NarrativeScanView({
           >
             Find narratives
           </button>
-          {scan && scan.status === "paused" && (
+          {scan && (scan.status === "paused" || scan.status === "failed") && (
             <button
               onClick={() => api.startNarrativeScan(scan.id).then(() => refreshScan(scan.id))}
               className="border border-line rounded-md px-4 py-2 text-sm hover:border-accent"
+              title="The Grok report is cached on the scan — a retry only re-runs the Claude structuring step."
             >
-              Resume scan
+              {scan.status === "failed" ? "Retry scan" : "Resume scan"}
             </button>
           )}
           {error && <span className="text-failed text-sm">{error}</span>}

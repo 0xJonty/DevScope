@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-10-12 (narrative scan resilience)
+
+### Fixed
+- First live 0.13.0 scan failed whole-report validation on one 13-char ticker: the structured-output JSON schema carried the length rule only in a description. Ticker/token_name now enforce `minLength`/`maxLength` in the JSON schema itself (ticker 2–10, pump.fun's limit), the prompt gains an explicit compression rule for longer phrases (`narrative-v1.1.1`), and zod normalizes formatting before validating ($ prefix stripped, uppercased, spaces collapsed; 12-char headroom).
+- N2 structuring retries once on schema-validation failure — the Grok report is cached on the row, so a retry costs one Claude run, never a Grok call.
+- Failed narrative scans get a **Retry scan** button (previously only paused ones could resume).
+
 ## [0.13.0] — 2026-10-12 (tokenable narratives)
 
 ### Added
