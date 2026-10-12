@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-10-12 (deployer rework: wallets, pairing, charities)
+
+### Added
+- **Multi-wallet manager** — Settings → Wallets tab: import any number of deploy wallets (base58 Phantom export or 64-byte JSON array) into `data/wallets.json` (0600), pick a **main** wallet (the default deploy signer) and switch wallet per deploy from the form. The 0.14.0 burner migrates automatically. The deploy lookup table tracks its authority wallet and extends/recreates accordingly.
+- **Pairing** — quote-mint select listing everything `create_v2` accepts live (203 at verify time: SOL, USDC, QuoteControl xStocks/memes), symbols resolved in bulk (Token-2022 metadata + one pump batch, ~2s); token-quoted deploys build via `createV2AndBuyV2Instructions` with the dev buy denominated in the quote. Pump-coin quotes refused for now.
+- **Verified charities** — search pump.fun's donate.gg list, add up to 5 with per-charity fee percentages; the deploy runs a follow-up fee-split tx (`createFeeSharingConfig` + `createDonationFeePda` + `updateFeeSharesV2`, settable once per coin — the exact assembly pump's frontend ships). Needs the pump.fun session cookie (new Settings field, `data/pump-auth.json`); charity deploys fail loud before any spend without it. New `sharing` status + `fee_share_signature` column (migration 0007). A failed split never un-confirms the deploy.
+- **Holder rewards** is a gift-icon toggle button (mutually exclusive with charities).
+
+### Changed
+- **Slippage and priority-fee fields removed** from the deploy form — verified against pump.fun's own frontend bundle (`SOL_CREATE_SLIPPAGE_BPS = 0`, token quotes 1000, priority handled internally); both are now internal constants in `config/deploy.json`, still recorded per deployment row.
+- Description is explicitly optional and the textarea no longer resizes.
+
 ## [0.14.0] — 2026-10-12 (built-in token deployer)
 
 ### Added
