@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type NarrativeTokenCard } from "../api";
 import NarrativeTokenTile from "../components/NarrativeTokenTile";
+import DeployModal from "../components/DeployModal";
 
 /** Narratives library — every tokenable narrative as its own token card,
  * grouped under scan-date separators (newest day first). */
 export default function NarrativesView({ openToken }: { openToken: (id: string) => void }) {
   const [entries, setEntries] = useState<NarrativeTokenCard[] | null>(null);
+  const [deployId, setDeployId] = useState<string | null>(null);
 
+  const load = () => api.listNarrativeTokens().then(setEntries, () => setEntries([]));
   useEffect(() => {
-    api.listNarrativeTokens().then(setEntries, () => setEntries([]));
+    void load();
   }, []);
 
   const groups = useMemo(() => {
@@ -55,11 +58,19 @@ export default function NarrativesView({ openToken }: { openToken: (id: string) 
           </div>
           <div className="grid grid-cols-2 min-[1500px]:grid-cols-3 gap-4">
             {tokens.map((t) => (
-              <NarrativeTokenTile key={t.id} t={t} onOpen={openToken} />
+              <NarrativeTokenTile key={t.id} t={t} onOpen={openToken} onDeploy={setDeployId} />
             ))}
           </div>
         </section>
       ))}
+
+      {deployId && (
+        <DeployModal
+          narrativeTokenId={deployId}
+          onClose={() => setDeployId(null)}
+          onDeployed={() => void load()}
+        />
+      )}
     </div>
   );
 }

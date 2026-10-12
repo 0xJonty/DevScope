@@ -50,9 +50,11 @@ export function TokenImage({
 export default function NarrativeTokenTile({
   t,
   onOpen,
+  onDeploy,
 }: {
   t: NarrativeTokenCard;
   onOpen: (id: string) => void;
+  onDeploy?: (id: string) => void;
 }) {
   const momentum = (t.momentum && MOMENTUM_STYLES[t.momentum]) || null;
   return (
@@ -78,6 +80,29 @@ export default function NarrativeTokenTile({
         {t.feeType && <Chip text={FEE_LABELS[t.feeType] ?? t.feeType} className="text-accent border-accent/40" />}
         {t.confidence && (
           <Chip text={t.confidence} className={CONFIDENCE_STYLES[t.confidence] ?? "text-dim border-line"} />
+        )}
+        {t.deployed ? (
+          <a
+            href={`https://pump.fun/coin/${t.deployed.mint}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="ml-auto text-[11px] border border-worked/40 text-worked rounded-full px-2 py-0.5 hover:border-worked"
+          >
+            deployed ↗
+          </a>
+        ) : (
+          onDeploy && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeploy(t.id);
+              }}
+              className="ml-auto text-[11px] border border-line text-dim rounded-full px-2 py-0.5 hover:text-accent hover:border-accent/60"
+            >
+              deploy
+            </button>
+          )
         )}
       </div>
     </article>

@@ -193,6 +193,7 @@ export interface NarrativeTokenCard {
   momentum: string | null;
   confidence: string | null;
   feeType: NarrativeFeeType | null;
+  deployed: { mint: string; signature: string } | null;
 }
 
 export interface NarrativeTokenDetail {
@@ -202,6 +203,7 @@ export interface NarrativeTokenDetail {
   rank: number;
   imagePath: string | null;
   narrative: Narrative;
+  deployed: { mint: string; signature: string } | null;
   scan: {
     prompt: string;
     windowDays: number;
@@ -247,6 +249,68 @@ export interface GrokStatus {
   windowDaysMax: number;
   relatedTweetsDefault: number;
   relatedTweetsMax: number;
+}
+
+// ── Token deploys (PLAN.md §7e) ──────────────────────────────────────────
+
+export interface DeployerStatus {
+  pubkey: string;
+  balanceSol: number;
+  vanity: { ready: number; grinding: boolean; attempts: number; ratePerSec: number };
+}
+
+export interface DeployEstimate {
+  createCostSol: number;
+  devBuySol: number;
+  priorityFeeSol: number;
+  txFeeSol: number;
+  totalSol: number;
+  balanceSol: number;
+  sufficient: boolean;
+}
+
+export type DeploymentStatus =
+  | "pending"
+  | "pinning"
+  | "building"
+  | "sending"
+  | "confirming"
+  | "confirmed"
+  | "failed"
+  | "dry_run_ok";
+
+export interface Deployment {
+  id: string;
+  mint: string | null;
+  narrativeTokenId: string | null;
+  status: DeploymentStatus;
+  statusReason: string | null;
+  name: string;
+  ticker: string;
+  devBuySol: number;
+  dryRun: boolean;
+  metadataUri: string | null;
+  imageUrl: string | null;
+  signature: string | null;
+  vanity: boolean;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
+export interface DeployRequest {
+  name: string;
+  ticker: string;
+  description: string;
+  twitter?: string;
+  telegram?: string;
+  website?: string;
+  devBuySol: number;
+  slippagePct: number;
+  priorityFeeSol: number;
+  holderReward: boolean;
+  vanity: boolean;
+  dryRun: boolean;
+  narrativeTokenId?: string | null;
 }
 
 export interface BandSettings {
@@ -439,12 +503,28 @@ export const api = {
       json<{ userCode: string; verificationUri: string; expiresInSeconds: number }>(r)
     ),
   grokLogout: () => fetch("/api/grok/logout", { method: "POST" }).then(json),
+  getDeployer: () => fetch("/api/deployer").then((r) => json<DeployerStatus>(r)),
+  deployEstimate: (devBuySol: number, priorityFeeSol: number) =>
+    fetch(`/api/deploy/estimate?devBuySol=${devBuySol}&priorityFeeSol=${priorityFeeSol}`).then((r) =>
+      json<DeployEstimate>(r)
+    ),
+  createDeployment: (payload: DeployRequest, image: File | null) => {
+    const form = new FormData();
+    // payload first — multipart fields must precede the (large) file part.
+    form.append("payload", JSON.stringify(payload));
+    if (image) form.append("image", image);
+    return fetch("/api/deployments", { method: "POST", body: form }).then((r) =>
+      json<{ deploymentId: string }>(r)
+    );
+  },
+  getDeployment: (id: string) => fetch(`/api/deployments/${id}`).then((r) => json<Deployment>(r)),
+  listDeployments: () => fetch("/api/deployments").then((r) => json<Deployment[]>(r)),
 };
 
 export function subscribeScanEvents(
   scanId: string,
   onEvent: (ev: ScanEvent) => void,
-  kind: "scans" | "token-scans" | "vamp-scans" | "narrative-scans" = "scans"
+  kind: "scans" | "token-scans" | "vamp-scans" | "narrative-scans" | "deployments" = "scans"
 ): () => void {
   const source = new EventSource(`/api/${kind}/${scanId}/events`);
   source.onmessage = (e) => {

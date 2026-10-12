@@ -8,6 +8,7 @@ import {
   type ScanEvent,
 } from "../api";
 import NarrativeTokenTile from "../components/NarrativeTokenTile";
+import DeployModal from "../components/DeployModal";
 import GrokConnect from "../components/GrokConnect";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -32,6 +33,7 @@ export default function NarrativeScanView({
   const [tweets, setTweets] = useState(3);
   const [maxTweets, setMaxTweets] = useState(5);
   const [tokens, setTokens] = useState<NarrativeTokenCard[] | null>(null);
+  const [deployId, setDeployId] = useState<string | null>(null);
   const [grok, setGrok] = useState<GrokStatus | null>(null);
   const [scan, setScan] = useState<NarrativeScanInfo | null>(null);
   const [events, setEvents] = useState<ScanEvent[]>([]);
@@ -228,9 +230,12 @@ export default function NarrativeScanView({
               </div>
               <div className="grid grid-cols-2 min-[1500px]:grid-cols-3 gap-4">
                 {tokens.map((t) => (
-                  <NarrativeTokenTile key={t.id} t={t} onOpen={openToken} />
+                  <NarrativeTokenTile key={t.id} t={t} onOpen={openToken} onDeploy={setDeployId} />
                 ))}
               </div>
+              {deployId && (
+                <DeployModal narrativeTokenId={deployId} onClose={() => setDeployId(null)} />
+              )}
               {scan.narratives && scan.narratives.stale_dropped.length > 0 && (
                 <details>
                   <summary className="text-faint text-xs cursor-pointer select-none">

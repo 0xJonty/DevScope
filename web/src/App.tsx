@@ -4,6 +4,7 @@ import TokenScanView from "./views/TokenScanView";
 import NarrativeScanView from "./views/NarrativeScanView";
 import NarrativesView from "./views/NarrativesView";
 import NarrativeTokenView from "./views/NarrativeTokenView";
+import DeployView from "./views/DeployView";
 import LibraryView from "./views/LibraryView";
 import TokenLibraryView from "./views/TokenLibraryView";
 import ProfileView from "./views/ProfileView";
@@ -17,6 +18,7 @@ export type View =
   | { name: "narrativeScan" }
   | { name: "narratives" }
   | { name: "narrativeToken"; id: string }
+  | { name: "deploy" }
   | { name: "library" }
   | { name: "tokenLibrary" }
   | { name: "profile"; wallet: string }
@@ -31,6 +33,7 @@ const NAV: Array<{ key: View["name"]; label: string }> = [
   { key: "library", label: "Dev Library" },
   { key: "tokenLibrary", label: "Token Library" },
   { key: "narratives", label: "Narratives" },
+  { key: "deploy", label: "Deploy" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -85,6 +88,7 @@ export default function App() {
         {view.name === "narrativeToken" && (
           <NarrativeTokenView id={view.id} back={() => setView({ name: "narratives" })} />
         )}
+        {view.name === "deploy" && <DeployView />}
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
         {view.name === "tokenLibrary" && <TokenLibraryView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "profile" && (

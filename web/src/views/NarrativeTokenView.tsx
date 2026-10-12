@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type NarrativeTokenDetail } from "../api";
 import { Chip } from "../components/ThesisCard";
+import DeployModal from "../components/DeployModal";
 import {
   CONFIDENCE_STYLES,
   FEE_LABELS,
@@ -23,9 +24,13 @@ function postLabel(url: string): string {
 export default function NarrativeTokenView({ id, back }: { id: string; back: () => void }) {
   const [detail, setDetail] = useState<NarrativeTokenDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
 
-  useEffect(() => {
+  const load = () =>
     api.getNarrativeToken(id).then(setDetail, (e) => setError(e instanceof Error ? e.message : String(e)));
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (error) return <p className="text-failed text-sm">{error}</p>;
@@ -46,6 +51,23 @@ export default function NarrativeTokenView({ id, back }: { id: string; back: () 
           <div className="flex items-baseline gap-3 flex-wrap">
             <h1 className="text-lg font-semibold tracking-tight">{n.token_name ?? n.title}</h1>
             {n.ticker && <span className="text-dim">${n.ticker}</span>}
+            {detail.deployed ? (
+              <a
+                href={`https://pump.fun/coin/${detail.deployed.mint}`}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-auto text-xs border border-worked/40 text-worked rounded-full px-2.5 py-1 hover:border-worked"
+              >
+                deployed ↗
+              </a>
+            ) : (
+              <button
+                onClick={() => setDeploying(true)}
+                className="ml-auto text-xs border border-accent/60 text-accent rounded-full px-2.5 py-1 hover:border-accent"
+              >
+                Deploy this token
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <Chip text={n.category.replace(/_/g, " ")} />
@@ -114,6 +136,14 @@ export default function NarrativeTokenView({ id, back }: { id: string; back: () 
         <p className="text-faint text-xs">
           Scan focus: “{detail.scan.prompt}” · {detail.scan.relatedTweets} post(s) per narrative requested
         </p>
+      )}
+
+      {deploying && (
+        <DeployModal
+          narrativeTokenId={id}
+          onClose={() => setDeploying(false)}
+          onDeployed={() => void load()}
+        />
       )}
     </div>
   );
