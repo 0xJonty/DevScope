@@ -1,0 +1,1 @@
+ALTER TABLE `deployments` ADD `fee_share_signature` text;

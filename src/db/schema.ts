@@ -170,9 +170,16 @@ export type DeploymentStatus =
   | "building"
   | "sending"
   | "confirming"
+  | "sharing" // charity/fee-split tx after the create confirmed (0.15.0)
   | "confirmed"
   | "failed"
   | "dry_run_ok";
+
+export interface DeployCharity {
+  id: string; // donate.gg charity id (uuid)
+  name: string;
+  shareBps: number;
+}
 
 export interface DeployParams {
   name: string;
@@ -190,6 +197,10 @@ export interface DeployParams {
   slippageBps: number;
   priorityFeeSol: number;
   holderReward: boolean;
+  /** Quote mint ("pairing", 0.15.0) — absent/null = SOL. */
+  quoteMint?: string | null;
+  /** Verified charities receiving creator-fee shares (0.15.0, ≤5). */
+  charities?: DeployCharity[];
   dryRun: boolean;
 }
 
@@ -210,6 +221,8 @@ export const deployments = sqliteTable("deployments", {
   metadataUri: text("metadata_uri"),
   imagePath: text("image_path"),
   signature: text("signature"),
+  /** Signature of the follow-up charity/fee-split tx (0.15.0). */
+  feeShareSignature: text("fee_share_signature"),
   vanity: integer("vanity", { mode: "boolean" }).notNull(),
   createdAt: integer("created_at").notNull(),
   finishedAt: integer("finished_at"),

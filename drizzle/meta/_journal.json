@@ -50,6 +50,13 @@
       "when": 1791773488709,
       "tag": "0006_brainy_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791778320370,
+      "tag": "0007_salty_warbound",
+      "breakpoints": true
     }
   ]
 }

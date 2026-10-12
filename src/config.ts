@@ -76,6 +76,7 @@ const deploySchema = z.object({
   }),
   dev_buy_sol_max: z.number().min(0),
   create_cost_sol_estimate: z.number().min(0),
+  fee_share_cost_sol_estimate: z.number().min(0),
   vanity: z.object({
     suffix: z.string().min(1).max(5),
     pool_target: z.number().int().min(0).max(5),

@@ -7,14 +7,27 @@ import BN from "bn.js";
 import {
   ComputeBudgetProgram,
   Keypair,
+  PublicKey,
   TransactionMessage,
   VersionedTransaction,
   type AddressLookupTableAccount,
-  type PublicKey,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { OnlinePumpSdk, PUMP_SDK, getBuyTokenAmountFromSolAmount } from "@pump-fun/pump-sdk";
-import { NATIVE_MINT } from "@solana/spl-token";
+import {
+  OnlinePumpSdk,
+  PUMP_SDK,
+  getBuyTokenAmountFromSolAmount,
+  donationFeePda,
+  feeSharingConfigPda,
+  creatorVaultPda,
+  ammCreatorVaultPda,
+  type Shareholder,
+} from "@pump-fun/pump-sdk";
+import {
+  NATIVE_MINT,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { config, deployConfig } from "../config.js";
 import { db, schema } from "../db/index.js";
 import type { DeployParams, DeploymentStatus } from "../db/schema.js";
@@ -22,6 +35,7 @@ import { scanEvents } from "../pipeline/events.js";
 import type { ScanEvent } from "../pipeline/types.js";
 import { ensureLookupTable, getCachedLookupTable, staticKeysAcross } from "./alt.js";
 import { getPinner } from "./ipfs.js";
+import { charityWeights, createDonateConfig } from "./pump-extras.js";
 import { getWallet } from "./wallets.js";
 import { ensureVanityPool, takeVanityKeypair } from "./vanity.js";
 import { getConnection, lamportsToSol, priorityFeeMicroLamports, solToLamports } from "./solana.js";
@@ -103,7 +117,7 @@ export function listDeployments(limit = 50) {
 }
 
 export function deploymentInFlight(): boolean {
-  const live: DeploymentStatus[] = ["pending", "pinning", "building", "sending", "confirming"];
+  const live: DeploymentStatus[] = ["pending", "pinning", "building", "sending", "confirming", "sharing"];
   return (
     db.select({ id: schema.deployments.id })
       .from(schema.deployments)
@@ -148,6 +162,7 @@ function setStatus(id: string, status: DeploymentStatus, reason?: string): void 
 export interface DeployEstimate {
   createCostSol: number;
   devBuySol: number;
+  feeShareCostSol: number;
   priorityFeeSol: number;
   txFeeSol: number;
   totalSol: number;
@@ -158,15 +173,25 @@ export interface DeployEstimate {
 export async function estimateDeployCost(
   devBuySol: number,
   priorityFeeSol: number,
-  walletPubkey?: string | null
+  walletPubkey?: string | null,
+  withCharity = false,
+  /** false = token-quoted deploy: the dev buy is paid in the quote token, not SOL. */
+  solQuote = true
 ): Promise<DeployEstimate> {
   const connection = getConnection();
   const balance = await connection.getBalance(getWallet(walletPubkey).publicKey);
   const txFeeSol = lamportsToSol(5000 * 2); // base fee × 2 signatures
-  const totalSol = deployConfig.create_cost_sol_estimate + devBuySol + priorityFeeSol + txFeeSol;
+  const feeShareCostSol = withCharity ? deployConfig.fee_share_cost_sol_estimate : 0;
+  const totalSol =
+    deployConfig.create_cost_sol_estimate +
+    (solQuote ? devBuySol : 0) +
+    feeShareCostSol +
+    priorityFeeSol +
+    txFeeSol;
   return {
     createCostSol: deployConfig.create_cost_sol_estimate,
     devBuySol,
+    feeShareCostSol,
     priorityFeeSol,
     txFeeSol,
     totalSol,
@@ -209,6 +234,24 @@ async function executeDeployment(id: string): Promise<void> {
     patch(id, { metadataUri });
     emit({ type: "progress", message: `Metadata pinned: ${metadataUri}` });
 
+    // 1b — donate.gg charity config (fails loud BEFORE anything is spent; a
+    // dry run skips it so no real config is created server-side).
+    let donateConfigId: PublicKey | null = null;
+    const charities = p.charities ?? [];
+    if (charities.length > 0 && !p.dryRun) {
+      emit({
+        type: "progress",
+        message: `Creating donate.gg config for ${charities.length} charit${charities.length === 1 ? "y" : "ies"}…`,
+      });
+      const weights = charityWeights(charities.map((c) => c.shareBps));
+      donateConfigId = await createDonateConfig(
+        charities.map((c, i) => ({ charityId: c.id, weight: weights[i]! }))
+      );
+      emit({ type: "progress", message: `Charity config: ${donateConfigId.toBase58()}` });
+    } else if (charities.length > 0 && p.dryRun) {
+      emit({ type: "log", message: "Dry run — skipping the donate.gg config and the fee-split tx." });
+    }
+
     // 2 — mint keypair (vanity pool or random).
     let mintKeypair: Keypair | null = null;
     if (row.vanity) {
@@ -234,47 +277,65 @@ async function executeDeployment(id: string): Promise<void> {
     const deployer = getWallet(p.walletPubkey);
 
     const global = await onlineSdk.fetchGlobal();
+    const quoteMintPk = p.quoteMint ? new PublicKey(p.quoteMint) : NATIVE_MINT;
+    const isSolQuote = quoteMintPk.equals(NATIVE_MINT);
+    const resolvedQuote = await onlineSdk.resolveQuoteMint(quoteMintPk);
+    if (resolvedQuote.source === "pumpCoin") {
+      setStatus(id, "failed", "pump-coin pairings are not supported yet — pick SOL or a listed token quote");
+      emit({ type: "error", message: "Pump-coin pairings are not supported yet." });
+      return;
+    }
     const feeConfig = p.devBuySol > 0 ? await onlineSdk.fetchFeeConfig() : null;
 
     /** The pump-program instructions for a given mint (no compute budget). */
     const buildPumpIxs = async (mintPk: PublicKey): Promise<TransactionInstruction[]> => {
+      const common = {
+        global,
+        mint: mintPk,
+        name: p.name,
+        symbol: p.ticker,
+        uri: metadataUri,
+        creator: deployer.publicKey,
+        user: deployer.publicKey,
+        mayhemMode: false,
+        holderReward: p.holderReward,
+      };
       if (p.devBuySol > 0) {
-        const solAmount = new BN(solToLamports(p.devBuySol));
+        // Dev buy is denominated in the quote (lamports for SOL, token units otherwise).
+        const quoteAmount = new BN(Math.round(p.devBuySol * 10 ** resolvedQuote.decimals));
         const quoted = getBuyTokenAmountFromSolAmount({
           global,
           feeConfig,
           mintSupply: null,
           bondingCurve: null,
-          amount: solAmount,
-          quoteMint: NATIVE_MINT,
+          amount: quoteAmount,
+          quoteMint: quoteMintPk,
         });
-        // Atomic create+buy on a fresh curve — pump.fun's own frontend uses 0
-        // slippage for SOL creates; p.slippageBps mirrors its constants.
+        // Atomic create+buy on a fresh curve — pump.fun's own frontend uses
+        // 0 bps for SOL creates, 1000 for token quotes; p.slippageBps mirrors it.
         const minOut = quoted.muln(10000 - p.slippageBps).divn(10000);
-        return PUMP_SDK.createV2AndBuyInstructions({
-          global,
-          mint: mintPk,
-          name: p.name,
-          symbol: p.ticker,
-          uri: metadataUri,
-          creator: deployer.publicKey,
-          user: deployer.publicKey,
+        if (isSolQuote) {
+          return PUMP_SDK.createV2AndBuyInstructions({
+            ...common,
+            amount: minOut,
+            solAmount: quoteAmount,
+          });
+        }
+        return PUMP_SDK.createV2AndBuyV2Instructions({
+          ...common,
           amount: minOut,
-          solAmount,
-          mayhemMode: false,
-          holderReward: p.holderReward,
+          quoteAmount,
+          quoteMint: quoteMintPk,
+          quoteTokenProgram: resolvedQuote.quoteTokenProgram,
+          slippage: p.slippageBps / 100,
         });
       }
       return [
         await PUMP_SDK.createV2Instruction({
-          mint: mintPk,
-          name: p.name,
-          symbol: p.ticker,
-          uri: metadataUri,
-          creator: deployer.publicKey,
-          user: deployer.publicKey,
-          mayhemMode: false,
-          holderReward: p.holderReward,
+          ...common,
+          ...(isSolQuote
+            ? {}
+            : { quoteMint: quoteMintPk, quoteTokenProgram: resolvedQuote.quoteTokenProgram }),
         }),
       ];
     };
@@ -404,6 +465,33 @@ async function executeDeployment(id: string): Promise<void> {
       return;
     }
 
+    // 6 — charity fee split (second tx; the create is already safely landed).
+    if (donateConfigId) {
+      setStatus(id, "sharing");
+      emit({ type: "stage", message: "Configuring charity fee split…" });
+      try {
+        const feeShareSignature = await sendFeeShareTx({
+          deployer,
+          mint,
+          donateConfigId,
+          charities,
+          quoteMintPk,
+          quoteTokenProgram: resolvedQuote.quoteTokenProgram,
+          isSolQuote,
+        });
+        patch(id, { feeShareSignature });
+        emit({ type: "progress", message: `Fee split set: https://solscan.io/tx/${feeShareSignature}` });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setStatus(id, "confirmed", `charity fee split failed — fees remain 100% creator: ${msg.slice(0, 300)}`);
+        emit({
+          type: "error",
+          message: `Token deployed, but the charity fee split FAILED (fees stay with the creator): ${msg}`,
+        });
+        return;
+      }
+    }
+
     setStatus(id, "confirmed");
     emit({
       type: "done",
@@ -414,6 +502,92 @@ async function executeDeployment(id: string): Promise<void> {
     setStatus(id, "failed", msg.slice(0, 500));
     emit({ type: "error", message: `Deploy failed: ${msg}` });
   }
+}
+
+/** The follow-up charity tx: sharing config + donation PDA + fee shares.
+ * Mirrors pump.fun's own frontend assembly (bundle-verified 2026-10-12). */
+async function sendFeeShareTx(input: {
+  deployer: Keypair;
+  mint: PublicKey;
+  donateConfigId: PublicKey;
+  charities: Array<{ shareBps: number }>;
+  quoteMintPk: PublicKey;
+  quoteTokenProgram: PublicKey;
+  isSolQuote: boolean;
+}): Promise<string> {
+  const { deployer, mint, donateConfigId, charities, quoteMintPk, quoteTokenProgram, isSolQuote } = input;
+  const connection = getConnection();
+  const totalBps = charities.reduce((acc, c) => acc + c.shareBps, 0);
+  const donationPda = donationFeePda(mint, donateConfigId);
+  const newShareholders: Shareholder[] = [
+    ...(totalBps < 10000 ? [{ address: deployer.publicKey, shareBps: 10000 - totalBps }] : []),
+    { address: donationPda, shareBps: totalBps },
+  ];
+
+  const instructions: TransactionInstruction[] = [
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFeeMicroLamports() }),
+    await PUMP_SDK.createFeeSharingConfig({ creator: deployer.publicKey, mint, pool: null }),
+    await PUMP_SDK.createDonationFeePda({
+      coinCreator: deployer.publicKey,
+      mint,
+      configId: donateConfigId,
+      ...(isSolQuote ? {} : { quoteMint: quoteMintPk }),
+    }),
+  ];
+
+  if (!isSolQuote) {
+    // Token-quoted coins need quote ATAs for the sharing-config vaults and
+    // every shareholder before fees can move (as the pump frontend does).
+    const sharingConfig = feeSharingConfigPda(mint);
+    const owners = [
+      creatorVaultPda(sharingConfig),
+      ammCreatorVaultPda(sharingConfig),
+      ...newShareholders.map((s) => s.address),
+    ];
+    for (const owner of owners) {
+      const ata = getAssociatedTokenAddressSync(quoteMintPk, owner, true, quoteTokenProgram);
+      instructions.push(
+        createAssociatedTokenAccountIdempotentInstruction(
+          deployer.publicKey,
+          ata,
+          owner,
+          quoteMintPk,
+          quoteTokenProgram
+        )
+      );
+    }
+  }
+
+  instructions.push(
+    await PUMP_SDK.updateFeeSharesV2({
+      authority: deployer.publicKey,
+      mint,
+      currentShareholders: [deployer.publicKey],
+      newShareholders,
+      quoteMint: quoteMintPk,
+      quoteTokenProgram,
+    })
+  );
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const tx = new VersionedTransaction(
+    new TransactionMessage({
+      payerKey: deployer.publicKey,
+      recentBlockhash: blockhash,
+      instructions,
+    }).compileToV0Message()
+  );
+  tx.sign([deployer]);
+  const signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+  const conf = await connection.confirmTransaction(
+    { signature, blockhash, lastValidBlockHeight },
+    "confirmed"
+  );
+  if (conf.value.err) {
+    throw new Error(`fee-split tx failed on-chain: ${JSON.stringify(conf.value.err)} (${signature})`);
+  }
+  return signature;
 }
 
 /** Resolve a `sending`/`confirming` row against the chain. Safe to call anytime. */
@@ -463,10 +637,22 @@ export function recoverInterruptedDeployments(): void {
         "building",
         "sending",
         "confirming",
+        "sharing",
       ] satisfies DeploymentStatus[])
     )
     .all();
   for (const row of rows) {
+    if (row.status === "sharing") {
+      // The create landed; only the fee-split outcome is unknown.
+      setStatus(
+        row.id,
+        "confirmed",
+        row.feeShareSignature
+          ? "restarted during fee-split confirm — check the signature on solscan"
+          : "restarted before the fee-split tx was sent — fees remain 100% creator"
+      );
+      continue;
+    }
     if (row.signature) {
       void reconcileDeployment(row.id).catch((err) =>
         console.error(`[deploy] reconcile ${row.id} failed:`, err)

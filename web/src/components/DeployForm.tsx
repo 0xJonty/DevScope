@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   subscribeScanEvents,
+  type Charity,
+  type DeployCharity,
   type DeployEstimate,
   type DeployerStatus,
   type Deployment,
+  type QuoteOption,
   type ScanEvent,
 } from "../api";
 
@@ -20,6 +23,7 @@ export interface DeployPrefill {
 
 const INPUT = "bg-surface border border-line rounded-md px-3 py-1.5 text-sm w-full focus:border-accent focus:outline-none";
 const LABEL = "text-dim text-xs";
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 const EVENT_COLORS: Record<string, string> = {
   error: "text-failed",
@@ -30,6 +34,18 @@ const EVENT_COLORS: Record<string, string> = {
 
 function short(addr: string): string {
   return `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+}
+
+function GiftIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" />
+      <line x1="12" y1="8" x2="12" y2="21" />
+      <path d="M12 8c-2.5 0-4.5-1.2-4.5-2.9C7.5 3.9 8.6 3 9.9 3c1.9 0 2.1 2.6 2.1 5z" />
+      <path d="M12 8c2.5 0 4.5-1.2 4.5-2.9C16.5 3.9 15.4 3 14.1 3 12.2 3 12 5.6 12 8z" />
+    </svg>
+  );
 }
 
 /** Shared deploy form — the Deploy page and the narrative modal both render this. */
@@ -46,10 +62,17 @@ export default function DeployForm({
   const [twitter, setTwitter] = useState("");
   const [telegram, setTelegram] = useState("");
   const [website, setWebsite] = useState("");
-  const [devBuySol, setDevBuySol] = useState("0");
+  const [devBuy, setDevBuy] = useState("0");
   const [holderReward, setHolderReward] = useState(prefill?.holderReward ?? false);
   const [vanity, setVanity] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const [quotes, setQuotes] = useState<QuoteOption[]>([]);
+  const [quoteMint, setQuoteMint] = useState<string>(SOL_MINT);
+  const [charities, setCharities] = useState<DeployCharity[]>([]);
+  const [charityTerm, setCharityTerm] = useState("");
+  const [charityResults, setCharityResults] = useState<Charity[]>([]);
+  const [pumpSession, setPumpSession] = useState<boolean | null>(null);
 
   const [deployer, setDeployer] = useState<DeployerStatus | null>(null);
   const [deployerError, setDeployerError] = useState<string | null>(null);
@@ -70,6 +93,10 @@ export default function DeployForm({
     ? `/images/${prefill.imagePath.split("/").pop()}`
     : null;
   const hasImage = imageFile !== null || prefillImageUrl !== null;
+
+  const isSolQuote = quoteMint === SOL_MINT;
+  const quoteSymbol = quotes.find((q) => q.mint === quoteMint)?.symbol ?? "SOL";
+  const charityBps = charities.reduce((acc, c) => acc + c.shareBps, 0);
 
   // Deployer strip: poll fast while the grind runs, slow otherwise.
   useEffect(() => {
@@ -100,10 +127,29 @@ export default function DeployForm({
     };
   }, []);
 
+  useEffect(() => {
+    api.deployQuotes().then(setQuotes, () =>
+      setQuotes([{ mint: SOL_MINT, symbol: "SOL", decimals: 9, source: "sol" }])
+    );
+    api.pumpSession().then((s) => setPumpSession(s.set), () => setPumpSession(null));
+  }, []);
+
+  // Charity search, debounced.
+  useEffect(() => {
+    if (charityTerm.trim().length < 2) {
+      setCharityResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      api.searchCharities(charityTerm.trim()).then(setCharityResults, () => setCharityResults([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [charityTerm]);
+
   useEffect(() => () => unsubscribe.current?.(), []);
 
-  const devBuy = Number(devBuySol);
   const selectedWallet = deployer?.wallets.find((w) => w.pubkey === walletPubkey) ?? null;
+  const devBuyNum = Number(devBuy);
   const formError = !walletPubkey
     ? "no deploy wallet — import one in Settings → Wallets"
     : !name.trim()
@@ -112,15 +158,31 @@ export default function DeployForm({
         ? "ticker required"
         : !hasImage
           ? "image required"
-          : !Number.isFinite(devBuy) || devBuy < 0
+          : !Number.isFinite(devBuyNum) || devBuyNum < 0
             ? "dev buy must be a non-negative number"
-            : null;
+            : charityBps > 10000
+              ? "charity shares exceed 100%"
+              : charities.length > 0 && pumpSession === false
+                ? "charity deploys need a pump.fun session — paste it in Settings → Wallets"
+                : null;
+
+  const addCharity = (c: Charity) => {
+    if (charities.length >= 5 || charities.some((x) => x.id === c.id)) return;
+    setCharities([...charities, { id: c.id, name: c.name, shareBps: 1000 }]);
+    setCharityTerm("");
+    setCharityResults([]);
+  };
+
+  const setCharityPct = (id: string, pct: string) => {
+    const bps = Math.round(Number(pct) * 100);
+    setCharities(charities.map((c) => (c.id === id ? { ...c, shareBps: Number.isFinite(bps) ? bps : 0 } : c)));
+  };
 
   const review = async () => {
     setBusy(true);
     setError(null);
     try {
-      setEstimate(await api.deployEstimate(devBuy, walletPubkey));
+      setEstimate(await api.deployEstimate(devBuyNum, walletPubkey, charities.length > 0, !isSolQuote));
       setPhase("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -141,8 +203,10 @@ export default function DeployForm({
           twitter: twitter.trim() || undefined,
           telegram: telegram.trim() || undefined,
           website: website.trim() || undefined,
-          devBuySol: devBuy,
+          devBuySol: devBuyNum,
           holderReward,
+          quoteMint: isSolQuote ? undefined : quoteMint,
+          charities: charities.filter((c) => c.shareBps > 0),
           vanity,
           dryRun,
           narrativeTokenId: prefill?.narrativeTokenId ?? null,
@@ -247,7 +311,7 @@ export default function DeployForm({
           </div>
 
           <div className="space-y-1">
-            <label className={LABEL}>Description</label>
+            <label className={LABEL}>Description (optional)</label>
             <textarea
               className={`${INPUT} h-20 resize-none`}
               maxLength={1000}
@@ -289,20 +353,125 @@ export default function DeployForm({
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className={LABEL}>Dev buy (SOL)</label>
-              <input className={INPUT} value={devBuySol} onChange={(e) => setDevBuySol(e.target.value)} />
+              <label className={LABEL}>Pairing</label>
+              <select
+                value={quoteMint}
+                onChange={(e) => setQuoteMint(e.target.value)}
+                className={INPUT}
+                title="The quote the bonding curve trades against (pump.fun supported list)"
+              >
+                {quotes.map((q) => (
+                  <option key={q.mint} value={q.mint}>
+                    {q.symbol}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className={LABEL}>Dev buy ({quoteSymbol})</label>
+              <input className={INPUT} value={devBuy} onChange={(e) => setDevBuy(e.target.value)} />
             </div>
           </div>
+          {!isSolQuote && devBuyNum > 0 && (
+            <p className="text-faint text-xs">
+              Dev buy is paid in {quoteSymbol} from the deploy wallet's {quoteSymbol} balance.
+            </p>
+          )}
 
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
+            <button
+              type="button"
+              aria-pressed={holderReward}
+              onClick={() => setHolderReward(!holderReward)}
+              disabled={charities.length > 0}
+              title={
+                charities.length > 0
+                  ? "Remove the charities first — holder rewards sends ALL creator fees to holders"
+                  : "Creator fees accrue to holders instead of the creator. PERMANENT per coin."
+              }
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-colors disabled:opacity-40 ${
+                holderReward
+                  ? "border-accent text-accent bg-accent/10"
+                  : "border-line text-dim hover:text-ink hover:border-accent/40"
+              }`}
+            >
+              <GiftIcon className="w-4 h-4" />
+              holder rewards
+            </button>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="accent-[#e0524f]" checked={vanity} onChange={(e) => setVanity(e.target.checked)} />
               <span className="text-dim">…pump mint address</span>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer" title="Creator fees accrue to holders instead of the creator. PERMANENT per coin.">
-              <input type="checkbox" className="accent-[#e0524f]" checked={holderReward} onChange={(e) => setHolderReward(e.target.checked)} />
-              <span className="text-dim">holder rewards</span>
+          </div>
+
+          {/* Charities */}
+          <div className="space-y-2">
+            <label className={LABEL}>
+              Charity fees {holderReward ? "— unavailable with holder rewards" : "(pump.fun verified, via donate.gg — up to 5)"}
             </label>
+            {!holderReward && (
+              <>
+                {charities.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {charities.map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 border border-line rounded-md px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                        <input
+                          className="bg-surface border border-line rounded-md px-2 py-1 text-xs w-16 text-right focus:outline-none focus:border-accent"
+                          value={String(c.shareBps / 100)}
+                          onChange={(e) => setCharityPct(c.id, e.target.value)}
+                        />
+                        <span className="text-dim text-xs">% of creator fees</span>
+                        <button
+                          onClick={() => setCharities(charities.filter((x) => x.id !== c.id))}
+                          className="text-faint hover:text-failed text-xs"
+                        >
+                          remove
+                        </button>
+                      </li>
+                    ))}
+                    <li className={`text-xs ${charityBps > 10000 ? "text-failed" : "text-faint"}`}>
+                      {charityBps / 100}% to charity · {Math.max(0, (10000 - charityBps) / 100)}% stays with the creator
+                    </li>
+                  </ul>
+                )}
+                {charities.length < 5 && (
+                  <div className="relative">
+                    <input
+                      className={INPUT}
+                      placeholder="Search a verified charity by name…"
+                      value={charityTerm}
+                      onChange={(e) => setCharityTerm(e.target.value)}
+                    />
+                    {charityResults.length > 0 && (
+                      <ul className="absolute z-10 mt-1 w-full bg-raised border border-line rounded-md max-h-56 overflow-y-auto">
+                        {charityResults.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              onClick={() => addCharity(c)}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-surface flex items-center gap-2"
+                            >
+                              {c.logo && <img src={c.logo} alt="" className="w-5 h-5 rounded-sm object-cover" />}
+                              <span className="min-w-0 truncate">{c.name}</span>
+                              {(c.city || c.state) && (
+                                <span className="text-faint text-xs ml-auto shrink-0">
+                                  {[c.city, c.state].filter(Boolean).join(", ")}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                {charities.length > 0 && pumpSession === false && (
+                  <p className="text-mid text-xs">
+                    Charity deploys route through donate.gg and need your pump.fun session — paste it in Settings → Wallets.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {vanity && deployer && deployer.vanity.ready === 0 && (
@@ -339,21 +508,34 @@ export default function DeployForm({
         <div className="space-y-4">
           <div className="border border-line rounded-md px-4 py-3 text-sm space-y-1.5">
             <Row label="Create (rent + accounts, est.)" sol={estimate.createCostSol} />
-            <Row label="Dev buy" sol={estimate.devBuySol} />
+            {isSolQuote ? (
+              <Row label="Dev buy" sol={estimate.devBuySol} />
+            ) : (
+              <div className="flex justify-between text-dim">
+                <span>Dev buy (paid in {quoteSymbol})</span>
+                <span>
+                  {devBuyNum} {quoteSymbol}
+                </span>
+              </div>
+            )}
+            {estimate.feeShareCostSol > 0 && <Row label="Charity fee-split setup (est.)" sol={estimate.feeShareCostSol} />}
             <Row label="Priority fee" sol={estimate.priorityFeeSol} />
             <Row label="Tx fee" sol={estimate.txFeeSol} />
             <div className="border-t border-line pt-1.5 flex justify-between font-medium">
-              <span>Total (est.)</span>
+              <span>Total SOL (est.)</span>
               <span>{estimate.totalSol.toFixed(4)} SOL</span>
             </div>
             <div className={`flex justify-between text-xs ${estimate.sufficient ? "text-dim" : "text-failed"}`}>
-              <span>Deployer balance</span>
+              <span>Wallet balance</span>
               <span>{estimate.balanceSol.toFixed(4)} SOL{estimate.sufficient ? "" : " — insufficient"}</span>
             </div>
           </div>
           <p className="text-faint text-xs">
-            {name.trim()} · ${ticker.trim()} · {vanity ? "…pump mint" : "random mint"}
+            {name.trim()} · ${ticker.trim()} · paired with {quoteSymbol} · {vanity ? "…pump mint" : "random mint"}
             {holderReward ? " · holder rewards (permanent)" : ""}
+            {charities.length > 0
+              ? ` · ${charityBps / 100}% of creator fees → ${charities.map((c) => c.name).join(", ")}`
+              : ""}
           </p>
           {error && <p className="text-failed text-xs">{error}</p>}
           <div className="flex items-center gap-3">
@@ -387,11 +569,15 @@ export default function DeployForm({
               {result.status === "confirmed" && result.mint && (
                 <div className="border border-worked/40 rounded-md px-4 py-3 text-sm space-y-1">
                   <p className="text-worked font-medium">Deployed</p>
+                  {result.statusReason && <p className="text-mid text-xs">{result.statusReason}</p>}
                   <p className="font-mono text-xs text-dim break-all">{result.mint}</p>
                   <p className="text-xs space-x-3">
                     <a className="text-accent hover:underline" href={`https://pump.fun/coin/${result.mint}`} target="_blank" rel="noreferrer">pump.fun</a>
                     {result.signature && (
                       <a className="text-accent hover:underline" href={`https://solscan.io/tx/${result.signature}`} target="_blank" rel="noreferrer">solscan</a>
+                    )}
+                    {result.feeShareSignature && (
+                      <a className="text-accent hover:underline" href={`https://solscan.io/tx/${result.feeShareSignature}`} target="_blank" rel="noreferrer">fee split</a>
                     )}
                   </p>
                 </div>
@@ -402,7 +588,7 @@ export default function DeployForm({
               {result.status === "failed" && (
                 <p className="text-failed text-sm">{result.statusReason ?? "deploy failed"}</p>
               )}
-              {result.status === "confirming" && (
+              {(result.status === "confirming" || result.status === "sharing") && (
                 <p className="text-mid text-sm">Still confirming — check Recent deploys in a moment.</p>
               )}
               <button onClick={reset} className="px-4 py-1.5 rounded-md text-sm text-dim border border-line hover:text-ink">

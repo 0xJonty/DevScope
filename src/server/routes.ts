@@ -31,6 +31,13 @@ import {
   setMainWallet,
   walletStatuses,
 } from "../deploy/wallets.js";
+import {
+  clearPumpSession,
+  getPumpSession,
+  getSupportedQuotes,
+  searchCharities,
+  setPumpSession,
+} from "../deploy/pump-extras.js";
 import { getConnection } from "../deploy/solana.js";
 import { ensureVanityPool, getVanityState } from "../deploy/vanity.js";
 import { db, schema } from "../db/index.js";
@@ -423,6 +430,17 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       .max(deployConfig.dev_buy_sol_max, `dev buy capped at ${deployConfig.dev_buy_sol_max} SOL`)
       .default(0),
     holderReward: z.boolean().default(false),
+    quoteMint: z.string().trim().regex(BASE58, "not a valid mint").nullish(),
+    charities: z
+      .array(
+        z.object({
+          id: z.string().min(8).max(64),
+          name: z.string().min(1).max(120),
+          shareBps: z.number().int().min(1).max(10000),
+        })
+      )
+      .max(5, "at most 5 charities")
+      .default([]),
     vanity: z.boolean().default(true),
     dryRun: z.boolean().default(false),
     narrativeTokenId: z.string().nullish(),
@@ -477,17 +495,62 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/api/deploy/estimate", async (req, reply) => {
-    const q = req.query as { devBuySol?: string; wallet?: string };
+    const q = req.query as { devBuySol?: string; wallet?: string; charity?: string; quote?: string };
     const devBuySol = Number(q.devBuySol ?? 0);
     if (!Number.isFinite(devBuySol) || devBuySol < 0) {
       return reply.code(400).send({ error: "devBuySol must be a non-negative number" });
     }
     try {
-      return await estimateDeployCost(devBuySol, deployConfig.priority_fee_sol, q.wallet || null);
+      return await estimateDeployCost(
+        devBuySol,
+        deployConfig.priority_fee_sol,
+        q.wallet || null,
+        q.charity === "1",
+        q.quote !== "token"
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return reply.code(msg.includes("wallet") ? 400 : 502).send({ error: msg });
     }
+  });
+
+  app.get("/api/deploy/quotes", async (_req, reply) => {
+    try {
+      // Pump-coin quotes need extra plumbing (pumpQuote accounts) — not offered yet.
+      return (await getSupportedQuotes()).filter((q) => q.source !== "pumpCoin");
+    } catch (err) {
+      return reply
+        .code(502)
+        .send({ error: `quote lookup failed: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
+
+  app.get("/api/deploy/charities", async (req, reply) => {
+    const term = ((req.query as { term?: string }).term ?? "").trim();
+    if (term.length < 2) return [];
+    try {
+      return await searchCharities(term);
+    } catch (err) {
+      return reply
+        .code(502)
+        .send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.get("/api/pump-session", async () => ({ set: getPumpSession() !== null }));
+
+  app.post("/api/pump-session", async (req, reply) => {
+    const parsed = z
+      .object({ cookie: z.string().trim().min(16, "paste the full Cookie header value") })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    setPumpSession(parsed.data.cookie);
+    return { ok: true };
+  });
+
+  app.delete("/api/pump-session", async () => {
+    clearPumpSession();
+    return { ok: true };
   });
 
   app.post("/api/deployments", async (req, reply) => {
@@ -530,11 +593,30 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
     const body = parsed.data;
 
+    if (body.charities.length > 0) {
+      if (body.holderReward) {
+        return reply.code(400).send({
+          error: "holder rewards and charity fees are mutually exclusive — a holder-rewards coin's fees all go to holders",
+        });
+      }
+      const totalBps = body.charities.reduce((acc, c) => acc + c.shareBps, 0);
+      if (totalBps > 10000) {
+        return reply.code(400).send({ error: "charity shares exceed 100%" });
+      }
+      if (!body.dryRun && getPumpSession() === null) {
+        return reply.code(400).send({
+          error: "charity deploys need a pump.fun session — paste your pump.fun cookie in Settings → Wallets",
+        });
+      }
+    }
+
     if (!body.dryRun) {
       const estimate = await estimateDeployCost(
         body.devBuySol,
         deployConfig.priority_fee_sol,
-        body.walletPubkey
+        body.walletPubkey,
+        body.charities.length > 0,
+        !body.quoteMint
       );
       if (!estimate.sufficient) {
         return reply.code(400).send({
@@ -554,9 +636,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           telegram: body.telegram,
           website: body.website,
           devBuySol: body.devBuySol,
-          slippageBps: deployConfig.create_slippage_bps.sol,
+          slippageBps: body.quoteMint
+            ? deployConfig.create_slippage_bps.token
+            : deployConfig.create_slippage_bps.sol,
           priorityFeeSol: deployConfig.priority_fee_sol,
           holderReward: body.holderReward,
+          quoteMint: body.quoteMint ?? null,
+          charities: body.charities,
           dryRun: body.dryRun,
         },
         vanity: body.vanity,
@@ -581,9 +667,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     walletPubkey: row.params.walletPubkey ?? null,
     devBuySol: row.params.devBuySol,
     dryRun: row.params.dryRun,
+    quoteMint: row.params.quoteMint ?? null,
+    charities: row.params.charities ?? [],
+    holderReward: row.params.holderReward,
     metadataUri: row.metadataUri,
     imageUrl: row.imagePath ? `/images/${row.imagePath.split("/").pop()}` : null,
     signature: row.signature,
+    feeShareSignature: row.feeShareSignature,
     vanity: row.vanity,
     createdAt: row.createdAt,
     finishedAt: row.finishedAt,

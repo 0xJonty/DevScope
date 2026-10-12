@@ -14,6 +14,9 @@ export default function WalletsPanel() {
   const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionSet, setSessionSet] = useState<boolean | null>(null);
+  const [cookie, setCookie] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   const refresh = () =>
     api.getDeployer().then(
@@ -22,7 +25,29 @@ export default function WalletsPanel() {
     );
   useEffect(() => {
     void refresh();
+    api.pumpSession().then((s) => setSessionSet(s.set), () => setSessionSet(null));
   }, []);
+
+  const saveSession = async () => {
+    setSessionError(null);
+    try {
+      await api.setPumpSession(cookie);
+      setCookie("");
+      setSessionSet(true);
+    } catch (e) {
+      setSessionError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const clearSession = async () => {
+    setSessionError(null);
+    try {
+      await api.clearPumpSession();
+      setSessionSet(false);
+    } catch (e) {
+      setSessionError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const doImport = async () => {
     setBusy(true);
@@ -128,6 +153,45 @@ export default function WalletsPanel() {
           </button>
         </div>
         {error && <p className="text-failed text-xs">{error}</p>}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-dim">pump.fun session (charity deploys)</h2>
+        <p className="text-dim text-sm">
+          Charity fee splits route through donate.gg and need your pump.fun login: open pump.fun in Chrome
+          (logged in) → DevTools → Network → any <span className="font-mono text-xs">fun-block.pump.fun</span> request
+          → copy the full <span className="font-mono text-xs">Cookie</span> request header and paste it here. Stored
+          locally at <span className="font-mono text-xs">data/pump-auth.json</span>; only ever sent to pump.fun.
+        </p>
+        <div className="flex items-center gap-3">
+          {sessionSet ? (
+            <>
+              <span className="text-worked text-sm">session set</span>
+              <button onClick={() => void clearSession()} className="text-faint hover:text-failed text-xs">
+                clear
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                className={`${INPUT} flex-1`}
+                type="password"
+                placeholder="paste pump.fun Cookie header value"
+                value={cookie}
+                onChange={(e) => setCookie(e.target.value)}
+                autoComplete="off"
+              />
+              <button
+                onClick={() => void saveSession()}
+                disabled={cookie.trim().length < 16}
+                className="border border-line rounded-md px-4 py-1.5 text-sm hover:border-accent disabled:opacity-40"
+              >
+                Save
+              </button>
+            </>
+          )}
+        </div>
+        {sessionError && <p className="text-failed text-xs">{sessionError}</p>}
       </section>
     </div>
   );

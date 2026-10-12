@@ -8,6 +8,7 @@ const STATUS_STYLES: Record<DeploymentStatus, string> = {
   building: "text-mid border-mid/40",
   sending: "text-mid border-mid/40",
   confirming: "text-mid border-mid/40",
+  sharing: "text-mid border-mid/40",
   confirmed: "text-worked border-worked/40",
   failed: "text-failed border-failed/40",
   dry_run_ok: "text-dim border-line",

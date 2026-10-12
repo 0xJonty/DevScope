@@ -268,6 +268,7 @@ export interface DeployerStatus {
 export interface DeployEstimate {
   createCostSol: number;
   devBuySol: number;
+  feeShareCostSol: number;
   priorityFeeSol: number;
   txFeeSol: number;
   totalSol: number;
@@ -281,9 +282,33 @@ export type DeploymentStatus =
   | "building"
   | "sending"
   | "confirming"
+  | "sharing"
   | "confirmed"
   | "failed"
   | "dry_run_ok";
+
+export interface QuoteOption {
+  mint: string;
+  symbol: string;
+  decimals: number;
+  source: string;
+}
+
+export interface Charity {
+  id: string;
+  name: string;
+  logo?: string | null;
+  website?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
+export interface DeployCharity {
+  id: string;
+  name: string;
+  shareBps: number;
+}
 
 export interface Deployment {
   id: string;
@@ -295,10 +320,14 @@ export interface Deployment {
   ticker: string;
   walletPubkey: string | null;
   devBuySol: number;
+  quoteMint: string | null;
+  charities: DeployCharity[];
+  holderReward: boolean;
   dryRun: boolean;
   metadataUri: string | null;
   imageUrl: string | null;
   signature: string | null;
+  feeShareSignature: string | null;
   vanity: boolean;
   createdAt: number;
   finishedAt: number | null;
@@ -313,6 +342,8 @@ export interface DeployRequest {
   website?: string;
   devBuySol: number;
   holderReward: boolean;
+  quoteMint?: string | null;
+  charities?: DeployCharity[];
   vanity: boolean;
   dryRun: boolean;
   narrativeTokenId?: string | null;
@@ -524,10 +555,21 @@ export const api = {
     }).then(json),
   removeWallet: (pubkey: string) =>
     fetch(`/api/wallets/${pubkey}`, { method: "DELETE" }).then(json),
-  deployEstimate: (devBuySol: number, wallet?: string | null) =>
-    fetch(`/api/deploy/estimate?devBuySol=${devBuySol}${wallet ? `&wallet=${wallet}` : ""}`).then((r) =>
-      json<DeployEstimate>(r)
-    ),
+  deployEstimate: (devBuySol: number, wallet?: string | null, charity = false, tokenQuote = false) =>
+    fetch(
+      `/api/deploy/estimate?devBuySol=${devBuySol}${wallet ? `&wallet=${wallet}` : ""}${charity ? "&charity=1" : ""}${tokenQuote ? "&quote=token" : ""}`
+    ).then((r) => json<DeployEstimate>(r)),
+  deployQuotes: () => fetch("/api/deploy/quotes").then((r) => json<QuoteOption[]>(r)),
+  searchCharities: (term: string) =>
+    fetch(`/api/deploy/charities?term=${encodeURIComponent(term)}`).then((r) => json<Charity[]>(r)),
+  pumpSession: () => fetch("/api/pump-session").then((r) => json<{ set: boolean }>(r)),
+  setPumpSession: (cookie: string) =>
+    fetch("/api/pump-session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ cookie }),
+    }).then(json),
+  clearPumpSession: () => fetch("/api/pump-session", { method: "DELETE" }).then(json),
   createDeployment: (payload: DeployRequest, image: File | null) => {
     const form = new FormData();
     // payload first — multipart fields must precede the (large) file part.

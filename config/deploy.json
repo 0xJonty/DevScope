@@ -6,6 +6,7 @@
   "create_slippage_bps": { "sol": 0, "token": 1000 },
   "dev_buy_sol_max": 10,
   "create_cost_sol_estimate": 0.025,
+  "fee_share_cost_sol_estimate": 0.004,
   "vanity": { "suffix": "pump", "pool_target": 1 },
   "image_max_bytes": 5242880
 }
