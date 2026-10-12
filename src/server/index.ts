@@ -7,6 +7,7 @@ import { recoverInterruptedScans } from "../pipeline/orchestrator.js";
 import { recoverInterruptedTokenScans } from "../pipeline/token-scan.js";
 import { recoverInterruptedVampScans } from "../pipeline/vamp-scan.js";
 import { recoverInterruptedNarrativeScans } from "../pipeline/narrative-scan.js";
+import { recoverInterruptedMimicStudies } from "../pipeline/mimic-scan.js";
 import { recoverInterruptedDeployments } from "../deploy/pipeline.js";
 import { registerApiRoutes } from "./routes.js";
 
@@ -18,6 +19,7 @@ recoverInterruptedScans();
 recoverInterruptedTokenScans();
 recoverInterruptedVampScans();
 recoverInterruptedNarrativeScans();
+recoverInterruptedMimicStudies();
 recoverInterruptedDeployments();
 
 const webDist = join(config.root, "web", "dist");

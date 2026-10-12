@@ -17,5 +17,11 @@
     "ath_floor_usd": 10000,
     "shortlist_cap": 12,
     "image_candidates": 6
+  },
+  "mimic": {
+    "window_n": 100,
+    "exemplar_top": 8,
+    "exemplar_recent": 4,
+    "image_cap": 12
   }
 }

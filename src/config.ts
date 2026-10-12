@@ -52,6 +52,12 @@ const scanDefaultsSchema = z.object({
     shortlist_cap: z.number(),
     image_candidates: z.number(),
   }),
+  mimic: z.object({
+    window_n: z.number().int().min(10),
+    exemplar_top: z.number().int().min(1),
+    exemplar_recent: z.number().int().min(0),
+    image_cap: z.number().int().min(1),
+  }),
 });
 
 const narrativeSchema = z.object({

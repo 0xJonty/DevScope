@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-10-12 (Mimic Dev)
+
+### Added
+- **Mimic Dev** (PLAN.md §7f) — an extension of the Dev Scan: a button on the profile's new **Mimic** tab studies the deployer's last ~100 deploys and produces a followable playbook for deploying in their style. Two-step mini-pipeline checkpointed on the new `mimic_studies` table: **M1** digest (Layer A, ~3 free keyless pump.fun calls — fresh enumeration + fee-flag batch; mechanical style stats incl. naming buckets, ticker/name length + casing, description/socials/fee-flag use, …pump vanity share; top-ATH + recent exemplars with downloaded images; recurring X-handle candidates from token socials; prior theses joined in) and **M2** study (Layer B, 1 run on the synthesis-class model, prompt `mimic-v1.0.0`, exemplar images as vision blocks, optional Scrapling fetch of the dev's X account for tweet wording/tone/layout). Output sections: deploy playbook, narrative→token transformation, ticker/name wording rules, image style, fee patterns, deploy mechanics, X-account tone (nullable), narrative→deploy example mappings, confidence + unknowns.
+- Mechanical gates on the study (narrative-URL-gate philosophy): example-mapping mints must come from the digest and the X handle from the candidate list — invented references are dropped loudly; a null handle forces a null tone section. Mimic reads/writes nothing in `tokens`; the digest snapshot is the whole record.
+- Profile view gains **Profile / Mimic** tabs; the Mimic tab renders the latest study (playbook pinned, pattern-section grid, example cards), keeps per-run history with a selector, shows a live SSE feed while a study runs, and starts new studies (one in flight per wallet, HTTP 409).
+- Routes `POST /api/mimic-scans`, `POST /api/mimic-scans/:id/start`, `GET /api/mimic-scans/:id`, `GET /api/mimic-scans/:id/events` (SSE), `GET /api/mimic/:wallet`; CLI `npm run cli -- mimic <wallet>` with `--digest-only` (free M1 pass); regression `scripts/verify-mimic-digest.ts <wallet>` (free, verified live — 19-deploy wallet, 9 exemplar images, 2 keyless calls); `config/scan-defaults.json` gains a `mimic` block (window 100, exemplars 8+4, image cap 12), `config/reasoning.json` gains `mimic_model`/`max_turns_mimic`, Settings reports `mimic` prompt version.
+
 ## [0.17.0] — 2026-10-12 (narrative deploy prefill rework)
 
 ### Changed

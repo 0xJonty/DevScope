@@ -354,6 +354,44 @@ export interface DeployRequest {
   walletPubkey?: string | null;
 }
 
+// ── Mimic Dev studies (PLAN.md §7f) ──────────────────────────────────────
+
+export interface MimicExampleMapping {
+  mint: string;
+  narrative: string;
+  name: string;
+  ticker: string;
+  how: string;
+}
+
+export interface MimicStudyJson {
+  wallet?: string;
+  playbook_md?: string;
+  narrative_to_token_md?: string;
+  naming_md?: string;
+  image_style_md?: string;
+  fee_patterns_md?: string;
+  deploy_mechanics_md?: string;
+  twitter_handle?: string | null;
+  twitter_style_md?: string | null;
+  example_mappings?: MimicExampleMapping[];
+  confidence?: "high" | "medium" | "low";
+  unknowns?: string;
+}
+
+export interface MimicStudyInfo {
+  id: string;
+  wallet: string;
+  startedAt: number;
+  finishedAt: number | null;
+  status: "running" | "paused" | "failed" | "done";
+  statusReason: string | null;
+  deployCount: number | null;
+  promptVersion: string | null;
+  quotaSpent: Record<string, number> | null;
+  study: MimicStudyJson | null;
+}
+
 export interface BandSettings {
   success_mode: "bonded" | "ath_usd";
   success_min_ath_usd: number;
@@ -585,12 +623,22 @@ export const api = {
   },
   getDeployment: (id: string) => fetch(`/api/deployments/${id}`).then((r) => json<Deployment>(r)),
   listDeployments: () => fetch("/api/deployments").then((r) => json<Deployment[]>(r)),
+  createMimicStudy: (wallet: string) =>
+    fetch("/api/mimic-scans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ wallet }),
+    }).then((r) => json<{ scanId: string; estimate: EstimateMap; quota: QuotaMap }>(r)),
+  startMimicStudy: (id: string) => fetch(`/api/mimic-scans/${id}/start`, { method: "POST" }).then(json),
+  getMimicStudy: (id: string) => fetch(`/api/mimic-scans/${id}`).then((r) => json<MimicStudyInfo>(r)),
+  mimicStudies: (wallet: string) =>
+    fetch(`/api/mimic/${wallet}`).then((r) => json<MimicStudyInfo[]>(r)),
 };
 
 export function subscribeScanEvents(
   scanId: string,
   onEvent: (ev: ScanEvent) => void,
-  kind: "scans" | "token-scans" | "vamp-scans" | "narrative-scans" | "deployments" = "scans"
+  kind: "scans" | "token-scans" | "vamp-scans" | "narrative-scans" | "mimic-scans" | "deployments" = "scans"
 ): () => void {
   const source = new EventSource(`/api/${kind}/${scanId}/events`);
   source.onmessage = (e) => {

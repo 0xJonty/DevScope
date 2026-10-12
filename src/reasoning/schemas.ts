@@ -307,6 +307,130 @@ export const narrativeReportJsonSchema = {
   required: ["narratives", "stale_dropped"],
 } as const;
 
+/** Mimic Dev study output contract (PLAN.md §7f M2). One Layer B run turns the
+ * deterministic digest (last ~100 deploys + stats + exemplar images + X-handle
+ * candidates) into a followable deploy playbook. Mechanical gates live in the
+ * pipeline, not here: example mints must come from the digest, twitter_handle
+ * from the candidate list. */
+export const mimicStudySchema = z.object({
+  wallet: z.string(),
+  playbook_md: z.string().min(80),
+  narrative_to_token_md: z.string().min(40),
+  naming_md: z.string().min(40),
+  image_style_md: z.string().min(40),
+  fee_patterns_md: z.string().min(20),
+  deploy_mechanics_md: z.string().min(20),
+  /** Dev's own X account, from the digest's candidate list — null when none qualifies. */
+  twitter_handle: z.preprocess(
+    (v) => (typeof v === "string" ? v.trim().replace(/^@+/, "") || null : v ?? null),
+    z.string().max(15).nullable()
+  ),
+  twitter_style_md: z.preprocess((v) => v ?? null, z.string().nullable()),
+  example_mappings: z.array(
+    z.object({
+      mint: z.string(),
+      narrative: z.string(),
+      name: z.string(),
+      ticker: z.string(),
+      how: z.string(),
+    })
+  ),
+  confidence: z.enum(["high", "medium", "low"]),
+  unknowns: z.string(),
+});
+
+export type MimicStudy = z.infer<typeof mimicStudySchema>;
+
+export const mimicStudyJsonSchema = {
+  type: "object",
+  properties: {
+    wallet: { type: "string", description: "Echo the studied wallet address exactly" },
+    playbook_md: {
+      type: "string",
+      minLength: 200,
+      description:
+        "Markdown: the deploy playbook — numbered, followable steps to deploy in this dev's style, from catching a narrative to the deployed coin (naming it their way, image treatment, fee setup, timing). Concrete enough to execute without reading the other sections.",
+    },
+    narrative_to_token_md: {
+      type: "string",
+      minLength: 80,
+      description:
+        "Markdown: how a raw narrative becomes this dev's coin — what they keep, compress, or drop between the story and the deployed name/ticker/description, with token examples",
+    },
+    naming_md: {
+      type: "string",
+      minLength: 80,
+      description:
+        "Markdown: ticker + name style and wording rules — casing, length, spelling habits (canonical crowd spelling vs invented), phrase patterns, description habits — with token examples",
+    },
+    image_style_md: {
+      type: "string",
+      minLength: 80,
+      description:
+        "Markdown: image style and its relationship to the narrative — art style, sourcing (original/stolen/AI-gen), effort level, text-on-image habits, how image subject tracks the narrative. Ground in the attached exemplar images.",
+    },
+    fee_patterns_md: {
+      type: "string",
+      minLength: 40,
+      description:
+        "Markdown: which fee model (standard creator fees / holder rewards / cashback / transfer fee) they pair with which narrative types, from the digest's fee flags",
+    },
+    deploy_mechanics_md: {
+      type: "string",
+      minLength: 40,
+      description:
+        "Markdown: deploy mechanics — cadence, active hours, relaunch habits, vanity …pump mint use, socials attached per deploy",
+    },
+    twitter_handle: {
+      type: ["string", "null"],
+      maxLength: 15,
+      description:
+        "The dev's own X handle (no @) — MUST be one of the digest's twitter_candidates; null when no candidate is plausibly the dev's own account",
+    },
+    twitter_style_md: {
+      type: ["string", "null"],
+      description:
+        "Markdown: tweet wording, tone and layout of the dev's X account (casing, punctuation, emoji, line breaks, thread/reply habits, how they announce deploys) — null when twitter_handle is null or the account could not be read",
+    },
+    example_mappings: {
+      type: "array",
+      minItems: 1,
+      maxItems: 8,
+      description: "Concrete narrative→deploy mappings, the study's evidence core",
+      items: {
+        type: "object",
+        properties: {
+          mint: { type: "string", description: "Mint from the digest — never invented" },
+          narrative: { type: "string", description: "The raw narrative/moment behind this deploy" },
+          name: { type: "string" },
+          ticker: { type: "string" },
+          how: {
+            type: "string",
+            description: "One or two sentences: how the narrative became exactly this name/ticker/image/fee choice",
+          },
+        },
+        required: ["mint", "narrative", "name", "ticker", "how"],
+      },
+    },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    unknowns: { type: "string", description: "What the digest/images/X account could not establish" },
+  },
+  required: [
+    "wallet",
+    "playbook_md",
+    "narrative_to_token_md",
+    "naming_md",
+    "image_style_md",
+    "fee_patterns_md",
+    "deploy_mechanics_md",
+    "twitter_handle",
+    "twitter_style_md",
+    "example_mappings",
+    "confidence",
+    "unknowns",
+  ],
+} as const;
+
 export const synthesisSchema = z.object({
   verdict: z.string().min(40),
   deployer_patterns_md: z.string(),

@@ -7,5 +7,7 @@
   "vamp_model": "sonnet",
   "max_turns_vamp": 12,
   "narrative_model": "sonnet",
-  "max_turns_narrative": 6
+  "max_turns_narrative": 6,
+  "mimic_model": "opus",
+  "max_turns_mimic": 14
 }

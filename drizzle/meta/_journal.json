@@ -57,6 +57,13 @@
       "when": 1791778320370,
       "tag": "0007_salty_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791783434921,
+      "tag": "0008_powerful_spectrum",
+      "breakpoints": true
     }
   ]
 }

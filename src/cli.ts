@@ -15,6 +15,7 @@ Usage:
   npm run cli -- resume <scanId>
   npm run cli -- estimate <wallet> [--window <n>]
   npm run cli -- vamp <mint>
+  npm run cli -- mimic <wallet> [--digest-only]
   npm run cli -- narrative "<prompt>" [--days <1-7>] [--tweets <1-5>]
   npm run cli -- grok-login
   npm run cli -- grok-logout
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       through: { type: "string", default: "s7" },
       days: { type: "string" },
       tweets: { type: "string" },
+      "digest-only": { type: "boolean" },
     },
     strict: false,
   });
@@ -147,6 +149,39 @@ async function main(): Promise<void> {
       const s = getVampScan(vampId);
       console.log(`\nVamp scan ${vampId}: ${s.status}${s.statusReason ? ` — ${s.statusReason}` : ""}`);
       printQuota();
+      process.exit(s.status === "failed" ? 1 : 0);
+      break;
+    }
+    case "mimic": {
+      if (!target) throw new Error("wallet address required");
+      const mimic = await import("./pipeline/mimic-scan.js");
+      // --digest-only runs M1 alone (free pump.fun calls, no Layer B) — the
+      // cheap iteration path while tuning the digest/prompt.
+      if (values["digest-only"]) {
+        const { digest, pumpfunCalls } = await mimic.buildMimicDigest(target, (ev) =>
+          console.log(`[mimic] ${ev.message}`)
+        );
+        console.log(JSON.stringify({ ...digest, deploys: `${digest.deploys.length} rows (omitted)` }, null, 2));
+        console.log(`\npump.fun calls: ${pumpfunCalls} (keyless)`);
+        break;
+      }
+      assertAuthMode();
+      const studyId = mimic.createMimicStudy(target);
+      console.log(`Mimic study ${studyId} created.\n`);
+      scanEvents.on(`scan:${studyId}`, (ev) => console.log(`[mimic] ${ev.message}`));
+      mimic.startMimicStudy(studyId);
+      await new Promise<void>((resolveDone) => {
+        const timer = setInterval(() => {
+          const s = mimic.getMimicStudy(studyId);
+          if (s.status === "done" || s.status === "failed" || s.status === "paused") {
+            clearInterval(timer);
+            resolveDone();
+          }
+        }, 1000);
+      });
+      const s = mimic.getMimicStudy(studyId);
+      console.log(`\nMimic study ${studyId}: ${s.status}${s.statusReason ? ` — ${s.statusReason}` : ""}`);
+      if (s.study) console.log(JSON.stringify(s.study, null, 2));
       process.exit(s.status === "failed" ? 1 : 0);
       break;
     }

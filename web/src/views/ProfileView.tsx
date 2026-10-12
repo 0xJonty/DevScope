@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, fmtUsd, shortWallet, type StructuredProfile, type StructuredThesis } from "../api";
 import ThesisCard from "../components/ThesisCard";
+import MimicPanel, { DnaIcon } from "../components/MimicPanel";
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -57,6 +58,7 @@ export default function ProfileView({
 }) {
   const [profile, setProfile] = useState<StructuredProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"profile" | "mimic">("profile");
 
   useEffect(() => {
     api.profileStructured(wallet).then(setProfile, (e) => setError(String(e)));
@@ -95,6 +97,26 @@ export default function ProfileView({
         </button>
       </header>
 
+      {/* Profile / Mimic tabs (PLAN.md §7f — mimic studies live on the profile). */}
+      <div className="flex items-center gap-1 border-b border-line -mt-2">
+        {(["profile", "mimic"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-t-md border-b-2 -mb-px ${
+              tab === t ? "border-accent text-ink" : "border-transparent text-dim hover:text-ink"
+            }`}
+          >
+            {t === "mimic" && <DnaIcon className="w-3.5 h-3.5" />}
+            {t === "profile" ? "Profile" : "Mimic"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "mimic" && <MimicPanel wallet={wallet} />}
+
+      {tab === "profile" && (
+      <>
       {/* Deployer stats + description: verdict beside the full stat/fingerprint tile grid. */}
       <section className="grid grid-cols-1 min-[1280px]:grid-cols-[minmax(380px,2fr)_5fr] gap-4 items-start">
         {profile.sections.verdict && (
@@ -185,6 +207,8 @@ export default function ProfileView({
             <Prose md={profile.sections.questions} />
           </div>
         </section>
+      )}
+      </>
       )}
     </div>
   );

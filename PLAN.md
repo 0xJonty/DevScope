@@ -15,6 +15,8 @@ Added 0.9.0 — **Token Scan**: given a single contract address, run one researc
 
 Added 0.10.0 — **Vamp Scan**: opt-in PvP analysis around any scanned token's launch window — who vamped whom, and what decided it (§7c).
 
+Added 0.18.0 — **Mimic Dev**: an extension of the Dev Scan — study a profiled deployer's last ~100 deploys and produce a followable playbook for deploying in their style (§7f), stored on the profile's Mimic tab.
+
 v1 is the foundation. Later features (live launch alerts, narrative-meta scans, wallet clustering, self post-mortems) consume the same data layer and profile store. Nothing in v1 may assume it is the only feature.
 
 ---
@@ -237,6 +239,19 @@ Deploys run on their own queue (concurrency 1, never behind a Layer B scan; one 
 
 ---
 
+## 7f. Pipeline — Mimic Dev study (added 0.18.0)
+
+**Input:** a profiled deployer wallet (start button on the profile's **Mimic** tab — not a standalone feature, no side-menu entry). The study answers one question: given a raw narrative, what would THIS dev ship — and how does the owner ship like that? It patterns the narrative→deployed-coin transformation (what the dev keeps/compresses/drops), ticker/name wording and style, image style vs narrative, fee model per narrative type, deploy mechanics (cadence, hours, vanity …pump mints, socials), and — when the dev's own X account is identifiable — tweet wording/tone/layout.
+
+Mini-pipeline (one queued job on the shared scan queue; checkpointed on the `mimic_studies` row):
+
+1. **M1 — Digest (Layer A, free).** Fresh-enumerates the wallet's last `mimic.window_n` (default 100, `scan-defaults.json`) deploys via keyless pump.fun calls — enumeration pages plus one `POST /coins/mints` batch for the fee flags (`is_holder_reward`/`transfer_fee_bps`) that enumeration mapping drops. Computes mechanical style stats (classification counts, cadence, naming buckets, ticker/name length + casing, description habits, socials use, fee-flag use, …pump vanity share), selects exemplars (top `exemplar_top` by ATH + `exemplar_recent` newest, images downloaded up to `image_cap`), joins prior theses for mints this tool already studied, and extracts **X-handle candidates** — handles recurring (≥2×) across the window's token socials (a dev's own handle repeats across unrelated deploys; per-token community/post links don't). Checkpointed in `digest` — a resume never re-fetches. Deliberately reads/writes nothing in `tokens`: the digest snapshot is the whole record, so stale cache never skews a study and studies never skew per-wallet stats.
+2. **M2 — Study (Layer B, 1 run, idempotent).** Prompt `mimic-v*` on the synthesis-class model with the digest + exemplar images attached as labeled vision blocks; when a plausible own-account candidate exists the agent fetches `x.com/<handle>` via Scrapling (one fetch, two max) to study tweet wording, tone and layout. Output (validated `mimicStudySchema`): **`playbook_md`** — THE deliverable, numbered followable steps to deploy in this dev's style end-to-end — plus `narrative_to_token_md`, `naming_md`, `image_style_md`, `fee_patterns_md`, `deploy_mechanics_md`, nullable `twitter_handle` + `twitter_style_md`, `example_mappings[]` (mint + raw narrative + how it became exactly that name/ticker/image/fee), confidence, unknowns. Mechanical gates after validation (same philosophy as the narrative URL gate): example mints must come from the digest and the handle from the candidate list — invented references are dropped loudly, never kept; a null handle forces a null style section. The canonicality rule applies in reverse: the study describes the dev's spelling/casing habits exactly as shipped, never "improved".
+
+Studies are stored per run (history kept, newest rendered by default) on the profile's Mimic tab; one study in flight per wallet (HTTP 409). Typical cost: ~3 keyless pump.fun calls + 1 Layer B run — no quota'd providers. v1 scope: studies are reference output for the owner's manual iteration — nothing else consumes them yet (§15 future hook: prefill the Deploy form from a playbook). CLI: `npm run cli -- mimic <wallet>` (`--digest-only` = M1 alone, free); regression: `scripts/verify-mimic-digest.ts <wallet>` (free).
+
+---
+
 ## 8. Reasoning layer details
 
 - **Model routing:** theses on the default Sonnet-class model; synthesis may use a stronger model (config). Keep per-run context tight — one dossier per run, never the whole set.
@@ -259,6 +274,7 @@ Deploys run on their own queue (concurrency 1, never behind a Layer B scan; one 
 - `narrative_scans(id PK, prompt, window_days, related_tweets, started_at, finished_at, status, status_reason, grok_model, grok_raw JSON, narratives JSON, prompt_version)` — Narrative X Scan runs (§7d), self-contained
 - `narrative_tokens(id PK, scan_id, created_at, rank, json, image_path)` — one tokenable narrative per row (§7d N3); json holds the full token concept
 - `deployments(id PK, mint, narrative_token_id, status, status_reason, params JSON, metadata_uri, image_path, signature, fee_share_signature, vanity, created_at, finished_at)` — Token Deploy attempts (§7e); never feeds `tokens`
+- `mimic_studies(id PK, wallet, started_at, finished_at, status, status_reason, deploy_count, digest JSON, study JSON, prompt_version, quota_spent JSON)` — Mimic Dev studies (§7f), self-contained (digest = M1 checkpoint, study = validated Layer B output)
 - `theses(mint, scan_id, json, prompt_version)` — scan_id is a deployer-scan OR token-scan id
 - `profiles(wallet PK, file_path, updated_at, verdict_snippet)`
 - `provider_usage(provider, month, calls_used, soft_limit)`
@@ -299,7 +315,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 3. **Dev Library** (renamed from Library, 0.9.0) — profile cards (name/shortwallet, verdict snippet, bond rate, best ATH, scanned date), sort + search, rename inline. Deployer profiles only — token-scan results never appear here.
 4. **Token Library** (added 0.9.0) — cards with token image, name, ticker, contract address (copy), classification/ATH, scan date; sort + search; click → token detail view (metadata, socials, deployer link, full thesis card, vamp panel with 🦇 start button). Individually scanned tokens only — deployer-scan dossiers never appear here.
 4b. **Dev-scan token page** (added 0.10.0) — 🦇 on a profile thesis card lands here and auto-starts the vamp scan (the button press is the consent; a plain page open never starts one). Token header + dev-scan thesis + vamp panel, back-link to the profile. Scoped under the deployer profile — not a Token Library entry.
-5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
+5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token. **Profile/Mimic tabs** (0.18.0): the Mimic tab holds the wallet's deploy-pattern studies (§7f) — start button, live SSE feed while one runs, latest study rendered (playbook pinned, pattern sections in a grid, narrative→deploy example cards), history selector for older studies.
 6. **Settings** — quota meters per provider, defaults, bands editor (success mode + thresholds, reset to defaults, 0.11.0; bands renamed failed/mid/success 0.16.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display, Grok connection panel (0.12.1: auth mode, model, connect/disconnect — same device-code flow as the scan page, shared `GrokConnect` component).
 7. **Narrative X Scan** (added 0.12.0, token-concept rework 0.13.0) — optional focus prompt, freshness slider (24h–7d), related-tweets selector (1–5), Grok connect panel (device-code login inline when not connected), start → live feed (SSE), result as a grid of narrative-token tiles + collapsed filtered-out list.
 8. **Narratives** (added 0.12.0, reworked 0.13.0) — library of every tokenable narrative as its own token card (placeholder monogram image until image gen, name, $TICKER, momentum glyph, category/fee/confidence chips), grouped under scan-date separators; click → narrative token page (image, ticker/name, fee type + reason, narrative description, all viral posts linked, unknowns, scan meta).
@@ -356,6 +372,7 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - Self post-mortems on your own wallet — identical pipeline pointed at yourself.
 - Wallet clustering (`linked_wallets`) once fee-sharing attribution matters.
 - j7 integration (pre-set image-gen prompts informed by profile insights) — profiles are machine-readable for this.
+- Mimic playbooks (§7f) prefilling the Deploy form (name/ticker/fee setup shaped by a studied dev's style) — studies are machine-readable JSON; v1 keeps them reference-only pending manual grading.
 - Multi-launchpad coverage (noted 2026-10-05: deployers also launch on Stonk etc., invisible to pump.fun-only enumeration) — Solana Tracker's `/deployer/{wallet}` already accepts a `launchpad` param, so this slots behind the existing `DataProvider` interface.
 - Vamp verdicts feeding S6 profile synthesis ("serial vamper — N of M top deploys vamped running tokens") — decided 2026-10-09: token-page-only in v1; re-scan synthesis later gains `vamp_verdicts` as input. Cross-launchpad vamp candidates are the same quota question as multi-launchpad coverage above.
 

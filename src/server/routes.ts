@@ -55,6 +55,14 @@ import {
   getNarrativeScan,
   startNarrativeScan,
 } from "../pipeline/narrative-scan.js";
+import {
+  createMimicStudy,
+  estimateMimicCost,
+  getMimicStudy,
+  listMimicStudies,
+  mimicStudyInFlight,
+  startMimicStudy,
+} from "../pipeline/mimic-scan.js";
 import { grokAccount, grokLoggedIn, grokLogout, startGrokDeviceLogin } from "../providers/grok.js";
 import { scanEvents } from "../pipeline/events.js";
 import { classify } from "../pipeline/s2-score.js";
@@ -63,6 +71,7 @@ import { THESIS_PROMPT_VERSION } from "../reasoning/prompts/thesis.js";
 import { SYNTHESIS_PROMPT_VERSION } from "../reasoning/prompts/synthesis.js";
 import { VAMP_PROMPT_VERSION } from "../reasoning/prompts/vamp.js";
 import { NARRATIVE_PROMPT_VERSION } from "../reasoning/prompts/narrative.js";
+import { MIMIC_PROMPT_VERSION } from "../reasoning/prompts/mimic.js";
 import type { ScanEvent, StageState } from "../pipeline/types.js";
 
 // Base58 Solana address (no 0, O, I, l), 32–44 chars.
@@ -857,6 +866,52 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  // ── Mimic Dev studies (PLAN.md §7f) ────────────────────────────────────
+  /** Lean row for the profile's Mimic tab — the digest snapshot stays server-side. */
+  const mimicStudyRow = (row: typeof schema.mimicStudies.$inferSelect) => ({
+    id: row.id,
+    wallet: row.wallet,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    status: row.status,
+    statusReason: row.statusReason,
+    deployCount: row.deployCount,
+    promptVersion: row.promptVersion,
+    quotaSpent: row.quotaSpent,
+    study: row.study ?? null,
+  });
+
+  app.post("/api/mimic-scans", async (req, reply) => {
+    const parsed = z.object({ wallet: walletField }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    const inFlight = mimicStudyInFlight(parsed.data.wallet);
+    if (inFlight) {
+      return reply.code(409).send({ error: "a mimic study is already running for this wallet", scanId: inFlight });
+    }
+    const scanId = createMimicStudy(parsed.data.wallet);
+    return { scanId, estimate: estimateMimicCost(), quota: getAllUsage() };
+  });
+
+  app.post("/api/mimic-scans/:id/start", async (req) => {
+    startMimicStudy((req.params as { id: string }).id);
+    return { ok: true };
+  });
+
+  app.get("/api/mimic-scans/:id", async (req, reply) => {
+    try {
+      return mimicStudyRow(getMimicStudy((req.params as { id: string }).id));
+    } catch {
+      return reply.code(404).send({ error: "mimic study not found" });
+    }
+  });
+
+  app.get("/api/mimic-scans/:id/events", sseEvents);
+
+  app.get("/api/mimic/:wallet", async (req) => {
+    const wallet = (req.params as { wallet: string }).wallet;
+    return listMimicStudies(wallet).map(mimicStudyRow);
+  });
+
   // ── Library / profiles ─────────────────────────────────────────────────
   app.get("/api/library", async () => {
     const rows = db.select().from(schema.profiles).orderBy(desc(schema.profiles.updatedAt)).all();
@@ -1008,6 +1063,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       synthesis: SYNTHESIS_PROMPT_VERSION,
       vamp: VAMP_PROMPT_VERSION,
       narrative: NARRATIVE_PROMPT_VERSION,
+      mimic: MIMIC_PROMPT_VERSION,
     },
     grok: { authMode: config.grokAuthMode, model: narrativeConfig.grok.model },
     quota: getAllUsage(),

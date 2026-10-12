@@ -228,6 +228,28 @@ export const deployments = sqliteTable("deployments", {
   finishedAt: integer("finished_at"),
 });
 
+/** Mimic Dev studies (PLAN.md §7f) — deploy-pattern research over a deployer's
+ * last ~100 deploys: how a raw narrative becomes their deployed coin (naming,
+ * image style, fee model, mechanics, X-account tone), synthesized into a
+ * followable deploy playbook. Checkpointed on its own row: `digest` is the M1
+ * snapshot (free pump.fun calls — a resume never re-fetches), `study` the
+ * validated Layer B output. Studies read the `tokens` table for nothing and
+ * write nothing into it — the digest snapshot is the whole record. */
+export const mimicStudies = sqliteTable("mimic_studies", {
+  id: text("id").primaryKey(),
+  wallet: text("wallet").notNull(),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+  status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
+  statusReason: text("status_reason"),
+  /** Deploys actually digested (≤ mimic window; wallets with thin history study what exists). */
+  deployCount: integer("deploy_count"),
+  digest: text("digest", { mode: "json" }).$type<Record<string, unknown>>(),
+  study: text("study", { mode: "json" }).$type<Record<string, unknown>>(),
+  promptVersion: text("prompt_version"),
+  quotaSpent: text("quota_spent", { mode: "json" }).$type<Record<string, number>>(),
+});
+
 export const theses = sqliteTable(
   "theses",
   {
