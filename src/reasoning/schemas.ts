@@ -146,6 +146,104 @@ export const vampVerdictJsonSchema = {
   ],
 } as const;
 
+/** Narrative report output contract (PLAN.md §7d N2). Layer B structures
+ * Grok's raw X trend report into discrete narratives; every key_posts URL must
+ * come from the report/citations (checked by prompt rule, spot-checked by the
+ * pipeline against the citation list). */
+export const narrativeReportSchema = z.object({
+  narratives: z.array(
+    z.object({
+      title: z.string().min(2),
+      summary: z.string().min(40),
+      category: z.enum([
+        "breaking_news",
+        "politics",
+        "crypto",
+        "meme",
+        "culture",
+        "tech",
+        "sports",
+        "drama",
+        "other",
+      ]),
+      momentum: z.enum(["exploding", "rising", "peaking", "fading"]),
+      started: z.string(),
+      key_posts: z.array(
+        z.object({
+          url: z.string(),
+          note: z.string(),
+        })
+      ),
+      confidence: z.enum(["high", "medium", "low"]),
+      unknowns: z.string(),
+    })
+  ),
+  stale_dropped: z.array(
+    z.object({
+      title: z.string(),
+      reason: z.string(),
+    })
+  ),
+});
+
+export type NarrativeReport = z.infer<typeof narrativeReportSchema>;
+
+export const narrativeReportJsonSchema = {
+  type: "object",
+  properties: {
+    narratives: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short name for the narrative" },
+          summary: {
+            type: "string",
+            description: "What the story/trend IS and why X cares right now, 2-5 sentences",
+          },
+          category: {
+            type: "string",
+            enum: ["breaking_news", "politics", "crypto", "meme", "culture", "tech", "sports", "drama", "other"],
+          },
+          momentum: {
+            type: "string",
+            enum: ["exploding", "rising", "peaking", "fading"],
+            description: "Trajectory right now, as the report's virality signals support",
+          },
+          started: { type: "string", description: "When the story broke, as the report states it (date or relative)" },
+          key_posts: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                url: { type: "string", description: "Post URL taken from the report — never invented" },
+                note: { type: "string", description: "What this post is / why it matters to the narrative" },
+              },
+              required: ["url", "note"],
+            },
+          },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          unknowns: { type: "string" },
+        },
+        required: ["title", "summary", "category", "momentum", "started", "key_posts", "confidence", "unknowns"],
+      },
+    },
+    stale_dropped: {
+      type: "array",
+      description: "Items in the report older than the window with no fresh development — dropped, with reason",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          reason: { type: "string" },
+        },
+        required: ["title", "reason"],
+      },
+    },
+  },
+  required: ["narratives", "stale_dropped"],
+} as const;
+
 export const synthesisSchema = z.object({
   verdict: z.string().min(40),
   deployer_patterns_md: z.string(),

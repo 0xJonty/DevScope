@@ -128,6 +128,24 @@ export const vampVerdicts = sqliteTable(
   (t) => [primaryKey({ columns: [t.mint, t.vampScanId] })]
 );
 
+/** Narrative X Scans (PLAN.md §7d) — Grok-sourced X trend research runs.
+ * Fully self-contained: grokRaw is the N1 checkpoint (a resume never re-spends
+ * the Grok call), narratives is the validated Layer B report. Nothing here
+ * touches `tokens` or the Solana provider ledger. */
+export const narrativeScans = sqliteTable("narrative_scans", {
+  id: text("id").primaryKey(),
+  prompt: text("prompt").notNull(),
+  windowDays: integer("window_days").notNull(),
+  startedAt: integer("started_at").notNull(),
+  finishedAt: integer("finished_at"),
+  status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
+  statusReason: text("status_reason"),
+  grokModel: text("grok_model"),
+  grokRaw: text("grok_raw", { mode: "json" }).$type<{ text: string; citations: string[] }>(),
+  narratives: text("narratives", { mode: "json" }).$type<Record<string, unknown>>(),
+  promptVersion: text("prompt_version"),
+});
+
 export const theses = sqliteTable(
   "theses",
   {

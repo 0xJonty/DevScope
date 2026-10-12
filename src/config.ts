@@ -54,6 +54,16 @@ const scanDefaultsSchema = z.object({
   }),
 });
 
+const narrativeSchema = z.object({
+  grok: z.object({
+    base_url: z.string(),
+    model: z.string(),
+    timeout_ms: z.number(),
+  }),
+  window_days_default: z.number().int().min(1),
+  window_days_max: z.number().int().min(1),
+});
+
 const providersSchema = z.object({
   providers: z.record(
     z.string(),
@@ -84,6 +94,7 @@ export const bands = loadJson("config/bands.json", bandsSchema);
 export const filters = loadJson("config/filters.json", filtersSchema);
 export const scanDefaults = loadJson("config/scan-defaults.json", scanDefaultsSchema);
 export const providerConfig = loadJson("config/providers.json", providersSchema);
+export const narrativeConfig = loadJson("config/narrative.json", narrativeSchema);
 
 export const config = {
   root: ROOT,
@@ -91,16 +102,23 @@ export const config = {
   dataDir: resolve(ROOT, process.env.DATA_DIR ?? "./data"),
   profilesDir: resolve(ROOT, process.env.PROFILES_DIR ?? "./profiles"),
   authMode: (process.env.AUTH_MODE ?? "subscription") as "subscription" | "api_key",
+  /** Grok (xAI) auth for the Narrative X Scan — same contract as AUTH_MODE:
+   * "subscription" uses the stored OAuth login (X Premium / SuperGrok),
+   * "api_key" bills XAI_API_KEY. */
+  grokAuthMode: (process.env.GROK_AUTH_MODE ?? "subscription") as "subscription" | "api_key",
   /** Scrapling MCP binary for Layer B link fetching (null = WebFetch-only, loud warn). */
   scraplingMcpCommand: process.env.SCRAPLING_MCP_COMMAND?.trim() || null,
 };
 
 /** Keys are validated lazily at the point of use so keyless features still run. */
-export function requireEnv(variable: "SOLANA_TRACKER_API_KEY" | "BITQUERY_API_KEY" | "ANTHROPIC_API_KEY"): string {
+export function requireEnv(
+  variable: "SOLANA_TRACKER_API_KEY" | "BITQUERY_API_KEY" | "ANTHROPIC_API_KEY" | "XAI_API_KEY"
+): string {
   const hints: Record<string, string> = {
     SOLANA_TRACKER_API_KEY: "free key at https://www.solanatracker.io/data-api",
     BITQUERY_API_KEY: "create an access token at https://account.bitquery.io",
     ANTHROPIC_API_KEY: "only needed when AUTH_MODE=api_key",
+    XAI_API_KEY: "only needed when GROK_AUTH_MODE=api_key — create at https://console.x.ai",
   };
   const value = process.env[variable];
   if (!value || value.trim() === "") {
@@ -123,5 +141,21 @@ export function assertAuthMode(): void {
   }
   if (config.authMode === "api_key") {
     requireEnv("ANTHROPIC_API_KEY");
+  }
+}
+
+/**
+ * Grok auth guard — mirrors assertAuthMode. In subscription mode a stray
+ * XAI_API_KEY must never silently bill; in api_key mode the key must exist.
+ */
+export function assertGrokAuthMode(): void {
+  if (config.grokAuthMode === "subscription" && process.env.XAI_API_KEY) {
+    throw new Error(
+      "AUTH GUARD: GROK_AUTH_MODE=subscription but XAI_API_KEY is set. " +
+        "Refusing to call Grok — unset XAI_API_KEY or set GROK_AUTH_MODE=api_key explicitly."
+    );
+  }
+  if (config.grokAuthMode === "api_key") {
+    requireEnv("XAI_API_KEY");
   }
 }

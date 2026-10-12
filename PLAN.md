@@ -197,6 +197,21 @@ Verdict lands in `vamp_verdicts` keyed `(mint, vamp_scan_id)`. Entry points: �
 
 ---
 
+## 7d. Pipeline — Narrative X Scan (added 0.12.0)
+
+**Input:** a free-text focus prompt (optional — empty = whole timeline) + a freshness window (slider, 1–7 days; `config/narrative.json` bounds). Finds what is genuinely viral on X right now and shapes it into discrete narratives with the most viral posts linked.
+
+**Grok (xAI) is the live-X layer** — a second subscription-auth reasoning provider alongside Claude, same philosophy: `GROK_AUTH_MODE=subscription` (default) uses a one-time device-code OAuth login (`npm run cli -- grok-login`, tokens in `data/grok-auth.json`, auto-refresh) against xAI's public OIDC surface at `auth.x.ai` with the Grok CLI client id — the flow Hermes/Kilo/pi-grok-cli use; calls bill the owner's X Premium weekly allowance. UNOFFICIAL surface (xAI has 403'd some tiers) → `api_key` mode (XAI_API_KEY, console.x.ai) is the sanctioned fallback; the same auth guard pattern as Claude prevents silent key billing. Grok sits in `src/providers/grok.ts` but is NOT a `DataProvider` (no Solana data, no monthly ledger — xAI's own weekly allowance is the quota).
+
+Mini-pipeline (one queued job; checkpointed on the `narrative_scans` row):
+
+1. **N1 — Grok research (subscription-quota'd, checkpointed in `grok_raw`).** One Responses-API call (`{base}/responses`, model from `config/narrative.json`) with the server-side `x_search` tool scoped `from_date`/`to_date` to the window (day-granular — the prompt restates the window in hours for tighter recency). Grok returns a dense trend report + cited post URLs. A resume never re-spends this call. Multi-round x_search is slow (1–3 min) — timeout 240s.
+2. **N2 — Narrative structuring (Layer B, 1 run, idempotent).** Prompt `narrative-v*` hands Claude the raw report + citation list — Layer B never searches. Output (validated `narrativeReportSchema`): `narratives[]` (title, summary, category, momentum `exploding|rising|peaking|fading`, started, key_posts, confidence, unknowns) + `stale_dropped[]` (older items with no in-window development — the second half of the freshness filter). Mechanical URL gate after validation: any key_post URL absent from the report/citations is dropped loudly — agents never invent links.
+
+Results live on the scan row (`narratives` JSON) — fully self-contained, nothing touches `tokens` or the provider ledger. Owner prompt standards apply (study-not-trade, positive assertions, no fluff); ATH-centric rules are token-scoped and don't apply here.
+
+---
+
 ## 8. Reasoning layer details
 
 - **Model routing:** theses on the default Sonnet-class model; synthesis may use a stronger model (config). Keep per-run context tight — one dossier per run, never the whole set.
@@ -216,6 +231,7 @@ Verdict lands in `vamp_verdicts` keyed `(mint, vamp_scan_id)`. Entry points: �
 - `token_scans(id PK, mint, started_at, finished_at, status, status_reason, quota_spent JSON, vamp_requested, vamp_scan_id)` — Token Scan runs (§7b)
 - `vamp_scans(id PK, mint, trigger_scan_id, started_at, finished_at, status, status_reason, window_minutes, ath_floor_usd, candidates_total, candidates_filtered, window_tokens JSON, shortlist JSON, quota_spent JSON)` — Vamp Scan runs (§7c)
 - `vamp_verdicts(mint, vamp_scan_id, json, prompt_version)` — PK (mint, vamp_scan_id)
+- `narrative_scans(id PK, prompt, window_days, started_at, finished_at, status, status_reason, grok_model, grok_raw JSON, narratives JSON, prompt_version)` — Narrative X Scan runs (§7d), self-contained
 - `theses(mint, scan_id, json, prompt_version)` — scan_id is a deployer-scan OR token-scan id
 - `profiles(wallet PK, file_path, updated_at, verdict_snippet)`
 - `provider_usage(provider, month, calls_used, soft_limit)`
@@ -258,6 +274,8 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 4b. **Dev-scan token page** (added 0.10.0) — 🦇 on a profile thesis card lands here and auto-starts the vamp scan (the button press is the consent; a plain page open never starts one). Token header + dev-scan thesis + vamp panel, back-link to the profile. Scoped under the deployer profile — not a Token Library entry.
 5. **Profile** — structured renderer (updated 2026-10-05): full-width desktop layout — header merges verdict with a stat/fingerprint tile grid, deployer-patterns panel + works/fails split below, thesis cards 3-per-row (2 when narrow) with token image/chips/collapsible evidence, open questions panel. The markdown file stays the source of truth; prose sections are parsed from it, token data comes from the DB. Links out to pump.fun/solscan per token.
 6. **Settings** — quota meters per provider, defaults, bands editor (worked mode + thresholds, reset to defaults, 0.11.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display.
+7. **Narrative X Scan** (added 0.12.0) — optional focus prompt, freshness slider (24h–7d), Grok connect panel (device-code login inline when not connected), start → live feed (SSE), narrative cards rendered inline (momentum glyph + category chip, viral post links, stale-filtered list collapsed).
+8. **Narratives** (added 0.12.0) — library of every finished Narrative X Scan (prompt, window, date, narrative count); click → full report re-rendered.
 
 ---
 
@@ -306,7 +324,7 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 ## 15. Future-feature hooks already in this design
 
 - Live deploy alerts for profiled wallets (websocket create-streams exist) — consumes `deployers` + profiles.
-- Narrative-meta scanner (what's working across ALL deployers right now) — same providers + reasoning layer.
+- Narrative-meta scanner (what's working across ALL deployers right now) — same providers + reasoning layer. The X-side half shipped 0.12.0 as the Narrative X Scan (§7d); the on-chain half (which narratives deployers are actually shipping) remains future.
 - Self post-mortems on your own wallet — identical pipeline pointed at yourself.
 - Wallet clustering (`linked_wallets`) once fee-sharing attribution matters.
 - j7 integration (pre-set image-gen prompts informed by profile insights) — profiles are machine-readable for this.
@@ -330,3 +348,4 @@ Validation at M3: run scans on 2–3 deployers whose history you already underst
 - [x] Solana Tracker `/search` (verified live 2026-10-09, for Vamp Scan): works **filter-only (no `query`) on the free tier**; `minCreatedAt`/`maxCreatedAt` (unix ms) reach arbitrary history; `market=pumpfun` restricts cleanly; `limit` max 500/page with `page` pagination + `hasMore`; rows carry mint/name/symbol/deployer/createdAt (+ current `marketCapUsd` — useless as a filter, dead tokens sit at ~$0; ATH comes from the free pump.fun batch instead). A 10-min global window = 347 pump.fun deploys, one page. Response may include up to 5 curated/promoted rows outside the window — client re-filters by bounds.
 - [x] pump.fun global `sort=created_timestamp` (probed 2026-10-09): works but offset paging dies between 1,000–5,000 rows (~1–3h of history at ~25 deploys/min) — unusable for historical windows; Solana Tracker `/search` is the vamp-scan enumerator.
 - [x] pump.fun fee-config flags (verified live 2026-10-09): every `/coins` row carries `is_holder_reward` and `transfer_fee_bps` alongside `is_cashback_enabled`. TODO-VERIFY: where creator-fee vs fee-share-target (wallet/X/github) vs charity config lives — not in enumeration rows; likely the coin page or metadata JSON (vamp V4 can Scrapling the coin page if it ever matters).
+- [x] xAI subscription OAuth (researched 2026-10-12, for Narrative X Scan): public OIDC at `https://auth.x.ai/.well-known/openid-configuration`, RFC 8628 device-code flow + refresh tokens, Grok CLI client id `b1a00492-…`, scope incl. `grok-cli:access api:access` — the flow Hermes/Kilo/pi-grok-cli ship; Hermes docs confirm the bearer works on `https://api.x.ai/v1` (Responses API) **including the `x_search` server-side tool, billed to subscription quota**. `x_search` params verified from xAI docs: `from_date`/`to_date` (YYYY-MM-DD, from-inclusive/to-exclusive, day-granular), handle allow/exclude lists. TODO-VERIFY (needs live login, first `grok-login` + scan): base URL acceptance for this tier (api.x.ai vs the `cli-chat-proxy.grok.com/v1` CLI proxy — config-switchable in `config/narrative.json`), the exact Responses output/citation shape (parser is deliberately tolerant), and that X Premium (non-SuperGrok) passes the OAuth allowlist (403 reports exist; `GROK_AUTH_MODE=api_key` is the fallback).

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import ScanView from "./views/ScanView";
 import TokenScanView from "./views/TokenScanView";
+import NarrativeScanView from "./views/NarrativeScanView";
+import NarrativesView from "./views/NarrativesView";
 import LibraryView from "./views/LibraryView";
 import TokenLibraryView from "./views/TokenLibraryView";
 import ProfileView from "./views/ProfileView";
@@ -11,6 +13,8 @@ import SettingsView from "./views/SettingsView";
 export type View =
   | { name: "scan"; scanId?: string }
   | { name: "tokenScan" }
+  | { name: "narrativeScan" }
+  | { name: "narratives" }
   | { name: "library" }
   | { name: "tokenLibrary" }
   | { name: "profile"; wallet: string }
@@ -21,8 +25,10 @@ export type View =
 const NAV: Array<{ key: View["name"]; label: string }> = [
   { key: "scan", label: "Dev Scan" },
   { key: "tokenScan", label: "Token Scan" },
+  { key: "narrativeScan", label: "Narrative X Scan" },
   { key: "library", label: "Dev Library" },
   { key: "tokenLibrary", label: "Token Library" },
+  { key: "narratives", label: "Narratives" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -66,6 +72,8 @@ export default function App() {
       <main className="flex-1 min-w-0 px-10 py-8 max-w-[1800px] mx-auto">
         {view.name === "scan" && <ScanView />}
         {view.name === "tokenScan" && <TokenScanView openToken={(mint) => setView({ name: "token", mint })} />}
+        {view.name === "narrativeScan" && <NarrativeScanView openLibrary={() => setView({ name: "narratives" })} />}
+        {view.name === "narratives" && <NarrativesView />}
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
         {view.name === "tokenLibrary" && <TokenLibraryView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "profile" && (

@@ -157,6 +157,54 @@ export interface TokenDetail {
   thesis: ThesisJson | null;
 }
 
+export interface NarrativePost {
+  url: string;
+  note: string;
+}
+
+export interface Narrative {
+  title: string;
+  summary: string;
+  category: string;
+  momentum: "exploding" | "rising" | "peaking" | "fading";
+  started: string;
+  key_posts: NarrativePost[];
+  confidence: "high" | "medium" | "low";
+  unknowns: string;
+}
+
+export interface NarrativeReport {
+  narratives: Narrative[];
+  stale_dropped: Array<{ title: string; reason: string }>;
+}
+
+export interface NarrativeScanInfo {
+  id: string;
+  prompt: string;
+  windowDays: number;
+  startedAt: number;
+  finishedAt: number | null;
+  status: "running" | "paused" | "failed" | "done";
+  statusReason: string | null;
+  grokModel: string | null;
+  promptVersion: string | null;
+  /** List endpoint only. */
+  narrativeCount?: number | null;
+  /** Detail endpoint only. */
+  narratives?: NarrativeReport | null;
+  grokRaw?: { text: string; citations: string[] } | null;
+}
+
+export interface GrokStatus {
+  authMode: "subscription" | "api_key";
+  loggedIn: boolean;
+  loginPending: boolean;
+  loginError: string | null;
+  model: string;
+  windowDaysDefault: number;
+  windowDaysMax: number;
+}
+
 export interface BandSettings {
   worked_mode: "bonded" | "ath_usd";
   worked_min_ath_usd: number;
@@ -325,12 +373,27 @@ export const api = {
       body: JSON.stringify({ include_mayhem }),
     }).then((r) => json<{ ok: boolean; include_mayhem: boolean }>(r)),
   quota: () => fetch("/api/quota").then((r) => json<QuotaMap>(r)),
+  createNarrativeScan: (prompt: string, windowDays: number) =>
+    fetch("/api/narrative-scans", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt, windowDays }),
+    }).then((r) => json<{ scanId: string }>(r)),
+  startNarrativeScan: (id: string) => fetch(`/api/narrative-scans/${id}/start`, { method: "POST" }).then(json),
+  getNarrativeScan: (id: string) => fetch(`/api/narrative-scans/${id}`).then((r) => json<NarrativeScanInfo>(r)),
+  listNarrativeScans: () => fetch("/api/narrative-scans").then((r) => json<NarrativeScanInfo[]>(r)),
+  grokStatus: () => fetch("/api/grok/status").then((r) => json<GrokStatus>(r)),
+  grokLogin: () =>
+    fetch("/api/grok/login", { method: "POST" }).then((r) =>
+      json<{ userCode: string; verificationUri: string; expiresInSeconds: number }>(r)
+    ),
+  grokLogout: () => fetch("/api/grok/logout", { method: "POST" }).then(json),
 };
 
 export function subscribeScanEvents(
   scanId: string,
   onEvent: (ev: ScanEvent) => void,
-  kind: "scans" | "token-scans" | "vamp-scans" = "scans"
+  kind: "scans" | "token-scans" | "vamp-scans" | "narrative-scans" = "scans"
 ): () => void {
   const source = new EventSource(`/api/${kind}/${scanId}/events`);
   source.onmessage = (e) => {

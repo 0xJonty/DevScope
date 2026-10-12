@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-10-12 (Narrative X Scan)
+
+### Added
+- **Narrative X Scan** (PLAN.md §7d): Grok (xAI) as a second subscription-auth reasoning provider — the live-X layer. One Responses-API call with the server-side `x_search` tool (date-scoped to the user's freshness window) returns a dense trend report + cited post URLs; one Layer B run (`narrative-v1.0.0`) structures it into discrete narratives (title, summary, category, momentum, started, most-viral post links, confidence, unknowns) plus a `stale_dropped` list — the freshness filter acts at both ends (day-granular `from_date`/`to_date` on the search, report-side drop of undated/stale items). A mechanical URL gate drops any post link not present in the Grok report/citations. Mini-pipeline checkpointed on the new `narrative_scans` row (migration 0004): a resume never re-spends the Grok call. Fully self-contained — never touches `tokens` or the provider quota ledger.
+- **Grok subscription auth** (`src/providers/grok.ts`): RFC 8628 device-code OAuth against xAI's public OIDC surface (`auth.x.ai`, Grok CLI client id — the Hermes/Kilo/pi-grok-cli flow); tokens in `data/grok-auth.json` (0600) with auto-refresh; calls bill the X Premium / SuperGrok weekly allowance. `GROK_AUTH_MODE` (`subscription` default | `api_key` with `XAI_API_KEY`) with the same silent-billing guard as the Claude auth mode. Unofficial surface — xAI has 403'd some tiers; api_key is the sanctioned fallback (PLAN.md §16).
+- **UI**: new **Narrative X Scan** view (focus prompt, 24h–7d freshness slider, inline Grok connect panel with device code, SSE feed, narrative cards with momentum glyphs + viral post links) and **Narratives** library view (every finished report, click to reread). New endpoints: `POST/GET /api/narrative-scans*`, `GET /api/grok/status`, `POST /api/grok/login`, `POST /api/grok/logout`; settings expose the grok auth mode + `narrative` prompt version.
+- **CLI**: `grok-login` / `grok-logout` / `narrative "<focus>" --days <1-7>`.
+- New config `config/narrative.json` (grok base_url/model/timeout, window bounds); `config/reasoning.json` gains `narrative_model` + `max_turns_narrative`.
+
 ## [0.11.1] — 2026-10-12 (vamp counterpart token boxes)
 
 ### Changed

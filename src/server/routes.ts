@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import type { FastifyReply, FastifyRequest, FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { BAND_DEFAULTS, bands, config, filters, scanDefaults } from "../config.js";
+import { BAND_DEFAULTS, bands, config, filters, narrativeConfig, scanDefaults } from "../config.js";
 import { db, schema } from "../db/index.js";
 import { getAllUsage } from "../providers/quota.js";
 import { createScan, estimateScanCost, requestPause, startScan } from "../pipeline/orchestrator.js";
@@ -14,12 +14,19 @@ import {
   getVampState,
   startVampScan,
 } from "../pipeline/vamp-scan.js";
+import {
+  createNarrativeScan,
+  getNarrativeScan,
+  startNarrativeScan,
+} from "../pipeline/narrative-scan.js";
+import { grokLoggedIn, grokLogout, startGrokDeviceLogin } from "../providers/grok.js";
 import { scanEvents } from "../pipeline/events.js";
 import { classify } from "../pipeline/s2-score.js";
 import { STAGE_LABELS, STAGES } from "../pipeline/types.js";
 import { THESIS_PROMPT_VERSION } from "../reasoning/prompts/thesis.js";
 import { SYNTHESIS_PROMPT_VERSION } from "../reasoning/prompts/synthesis.js";
 import { VAMP_PROMPT_VERSION } from "../reasoning/prompts/vamp.js";
+import { NARRATIVE_PROMPT_VERSION } from "../reasoning/prompts/narrative.js";
 import type { ScanEvent, StageState } from "../pipeline/types.js";
 
 // Base58 Solana address (no 0, O, I, l), 32–44 chars.
@@ -232,6 +239,101 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       }
     }
     return state;
+  });
+
+  // ── Narrative X Scans (Grok live-X trend research, PLAN.md §7d) ───────
+  const newNarrativeScanBody = z.object({
+    prompt: z.string().trim().max(500, "prompt must be 500 characters or fewer"),
+    windowDays: z
+      .number()
+      .int()
+      .min(1, "window must be at least 1 day")
+      .max(narrativeConfig.window_days_max, `window must be at most ${narrativeConfig.window_days_max} days`),
+  });
+
+  app.post("/api/narrative-scans", async (req, reply) => {
+    const parsed = newNarrativeScanBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    const scanId = createNarrativeScan(parsed.data.prompt, parsed.data.windowDays);
+    return { scanId };
+  });
+
+  app.post("/api/narrative-scans/:id/start", async (req) => {
+    startNarrativeScan((req.params as { id: string }).id);
+    return { ok: true };
+  });
+
+  app.get("/api/narrative-scans", async () => {
+    const rows = db
+      .select()
+      .from(schema.narrativeScans)
+      .orderBy(desc(schema.narrativeScans.startedAt))
+      .limit(30)
+      .all();
+    // List stays lean: narrative count instead of the full report payload.
+    return rows.map(({ grokRaw, narratives, ...rest }) => ({
+      ...rest,
+      narrativeCount: Array.isArray((narratives as { narratives?: unknown[] } | null)?.narratives)
+        ? (narratives as { narratives: unknown[] }).narratives.length
+        : null,
+    }));
+  });
+
+  app.get("/api/narrative-scans/:id", async (req, reply) => {
+    try {
+      return getNarrativeScan((req.params as { id: string }).id);
+    } catch {
+      return reply.code(404).send({ error: "narrative scan not found" });
+    }
+  });
+
+  app.get("/api/narrative-scans/:id/events", sseEvents);
+
+  // ── Grok auth (subscription OAuth for Narrative X Scans) ──────────────
+  let grokLoginError: string | null = null;
+  let grokLoginPending = false;
+
+  app.get("/api/grok/status", async () => ({
+    authMode: config.grokAuthMode,
+    loggedIn: config.grokAuthMode === "api_key" ? Boolean(process.env.XAI_API_KEY) : grokLoggedIn(),
+    loginPending: grokLoginPending,
+    loginError: grokLoginError,
+    model: narrativeConfig.grok.model,
+    windowDaysDefault: narrativeConfig.window_days_default,
+    windowDaysMax: narrativeConfig.window_days_max,
+  }));
+
+  app.post("/api/grok/login", async (_req, reply) => {
+    if (config.grokAuthMode === "api_key") {
+      return reply.code(400).send({ error: "GROK_AUTH_MODE=api_key — no OAuth login needed" });
+    }
+    try {
+      const login = await startGrokDeviceLogin();
+      grokLoginPending = true;
+      grokLoginError = null;
+      // Poll runs server-side; the UI watches /api/grok/status.
+      login.done
+        .then(() => {
+          grokLoginPending = false;
+        })
+        .catch((err) => {
+          grokLoginPending = false;
+          grokLoginError = err instanceof Error ? err.message : String(err);
+        });
+      return {
+        userCode: login.userCode,
+        verificationUri: login.verificationUri,
+        expiresInSeconds: login.expiresInSeconds,
+      };
+    } catch (err) {
+      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/grok/logout", async () => {
+    grokLogout();
+    grokLoginError = null;
+    return { ok: true };
   });
 
   // ── Dev-scan token page (bat button target, PLAN.md §10) ─────────────
@@ -486,7 +588,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     },
     bandDefaults: BAND_DEFAULTS,
     filters: { include_mayhem: filters.include_mayhem },
-    promptVersions: { thesis: THESIS_PROMPT_VERSION, synthesis: SYNTHESIS_PROMPT_VERSION, vamp: VAMP_PROMPT_VERSION },
+    promptVersions: {
+      thesis: THESIS_PROMPT_VERSION,
+      synthesis: SYNTHESIS_PROMPT_VERSION,
+      vamp: VAMP_PROMPT_VERSION,
+      narrative: NARRATIVE_PROMPT_VERSION,
+    },
+    grok: { authMode: config.grokAuthMode, model: narrativeConfig.grok.model },
     quota: getAllUsage(),
   }));
 

@@ -15,6 +15,9 @@ Usage:
   npm run cli -- resume <scanId>
   npm run cli -- estimate <wallet> [--window <n>]
   npm run cli -- vamp <mint>
+  npm run cli -- narrative "<prompt>" [--days <1-7>]
+  npm run cli -- grok-login
+  npm run cli -- grok-logout
   npm run cli -- quota
 
   --through s2   stop after S2 (M1 data-layer mode: enumerate + score, no AI)
@@ -78,6 +81,7 @@ async function main(): Promise<void> {
       window: { type: "string" },
       pin: { type: "string" },
       through: { type: "string", default: "s7" },
+      days: { type: "string" },
     },
     strict: false,
   });
@@ -142,6 +146,51 @@ async function main(): Promise<void> {
       const s = getVampScan(vampId);
       console.log(`\nVamp scan ${vampId}: ${s.status}${s.statusReason ? ` — ${s.statusReason}` : ""}`);
       printQuota();
+      process.exit(s.status === "failed" ? 1 : 0);
+      break;
+    }
+    case "grok-login": {
+      const { startGrokDeviceLogin, grokLoggedIn } = await import("./providers/grok.js");
+      if (grokLoggedIn()) console.log("Already logged in — continuing re-links the account.");
+      const login = await startGrokDeviceLogin();
+      console.log(`\nOpen:  ${login.verificationUri}`);
+      console.log(`Code:  ${login.userCode}`);
+      console.log(`\nWaiting for approval (expires in ${Math.round(login.expiresInSeconds / 60)} min)…`);
+      await login.done;
+      console.log("Grok login saved — Narrative X Scans will bill the subscription allowance.");
+      break;
+    }
+    case "grok-logout": {
+      const { grokLogout } = await import("./providers/grok.js");
+      grokLogout();
+      console.log("Grok OAuth tokens deleted.");
+      break;
+    }
+    case "narrative": {
+      const { narrativeConfig } = await import("./config.js");
+      const days = values.days ? Number(values.days) : narrativeConfig.window_days_default;
+      if (!Number.isInteger(days) || days < 1 || days > narrativeConfig.window_days_max) {
+        throw new Error(`--days must be an integer 1-${narrativeConfig.window_days_max}`);
+      }
+      const { createNarrativeScan, getNarrativeScan, startNarrativeScan } = await import(
+        "./pipeline/narrative-scan.js"
+      );
+      const scanId = createNarrativeScan(target ?? "", days);
+      console.log(`Narrative scan ${scanId} created (window ${days}d).\n`);
+      scanEvents.on(`scan:${scanId}`, (ev) => console.log(`[narrative] ${ev.message}`));
+      startNarrativeScan(scanId);
+      await new Promise<void>((resolveDone) => {
+        const timer = setInterval(() => {
+          const s = getNarrativeScan(scanId);
+          if (s.status === "done" || s.status === "failed" || s.status === "paused") {
+            clearInterval(timer);
+            resolveDone();
+          }
+        }, 1000);
+      });
+      const s = getNarrativeScan(scanId);
+      console.log(`\nNarrative scan ${scanId}: ${s.status}${s.statusReason ? ` — ${s.statusReason}` : ""}`);
+      if (s.narratives) console.log(JSON.stringify(s.narratives, null, 2));
       process.exit(s.status === "failed" ? 1 : 0);
       break;
     }

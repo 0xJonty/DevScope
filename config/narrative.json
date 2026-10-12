@@ -1,0 +1,10 @@
+{
+  "comment": "Narrative X Scan (PLAN.md §7d). Grok (xAI) is the live-X data layer: subscription OAuth by default (GROK_AUTH_MODE in .env), Responses API with the server-side x_search tool. base_url and model are VERIFY-AT-BUILD values — api.x.ai/v1 is the Hermes-verified OAuth surface; cli-chat-proxy.grok.com/v1 is the Grok-Build CLI proxy fallback. window_days bounds the UI freshness slider.",
+  "grok": {
+    "base_url": "https://api.x.ai/v1",
+    "model": "grok-4.6",
+    "timeout_ms": 240000
+  },
+  "window_days_default": 2,
+  "window_days_max": 7
+}
