@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-10-12 (tokenable narratives)
+
+### Added
+- **Narratives are now token concepts** (`narrative-v1.1.0`): each narrative carries an optimal ticker + token name (canonical crowd spelling — never "improved"; romanized original phrasing for non-English narratives), a recommended fee type (`creator_fees | holder_rewards | fee_share | charity` — the vamp deciding-factor vocabulary) with a one-line reason, and exactly N most-viral posts where N is a new **related-tweets selector (1–5)** on the scan form (`--tweets` on the CLI; default in `config/narrative.json`).
+- **Narrative token pages**: every validated narrative fans out to its own `narrative_tokens` row (migration 0005) with an addressable page — placeholder monogram image (image gen later; `image_path` reserved), ticker/name, fee type + reason, narrative description, momentum/category/confidence, all viral posts linked, unknowns, scan meta. New endpoints `GET /api/narrative-tokens[?scan=]` + `GET /api/narrative-tokens/:id`.
+- **Narratives tab rework**: one token card per narrative, grouped under scan-date separators (newest day first); the scan result view shows the same tiles.
+
+### Changed
+- **Scope rules baked into both prompts**: three lanes only — trending memes (priority: underserved, highest impact), political flashpoints, breaking news with meme energy; sports and generic/non-tokenable news excluded at both ends (Grok-side exclusion + Layer B drop to the filtered list). Search is explicitly global (JP/KR/CN/ES/PT/AR/EU spheres), not western/English-only — memes especially.
+- `stale_dropped` now covers non-tokenable drops as well as stale ones (UI label "filtered out").
+
 ## [0.12.2] — 2026-10-12 (linked account name + live verification)
 
 ### Added

@@ -162,15 +162,54 @@ export interface NarrativePost {
   note: string;
 }
 
+export type NarrativeFeeType = "creator_fees" | "holder_rewards" | "fee_share" | "charity";
+
 export interface Narrative {
   title: string;
   summary: string;
+  /** Token-concept fields (0.13.0) — absent on reports from older scans. */
+  ticker?: string;
+  token_name?: string;
+  fee_type?: NarrativeFeeType;
+  fee_reason?: string;
   category: string;
   momentum: "exploding" | "rising" | "peaking" | "fading";
   started: string;
   key_posts: NarrativePost[];
   confidence: "high" | "medium" | "low";
   unknowns: string;
+}
+
+export interface NarrativeTokenCard {
+  id: string;
+  scanId: string;
+  createdAt: number;
+  rank: number;
+  imagePath: string | null;
+  title: string | null;
+  ticker: string | null;
+  tokenName: string | null;
+  category: string | null;
+  momentum: string | null;
+  confidence: string | null;
+  feeType: NarrativeFeeType | null;
+}
+
+export interface NarrativeTokenDetail {
+  id: string;
+  scanId: string;
+  createdAt: number;
+  rank: number;
+  imagePath: string | null;
+  narrative: Narrative;
+  scan: {
+    prompt: string;
+    windowDays: number;
+    relatedTweets: number;
+    grokModel: string | null;
+    promptVersion: string | null;
+    finishedAt: number | null;
+  } | null;
 }
 
 export interface NarrativeReport {
@@ -182,6 +221,7 @@ export interface NarrativeScanInfo {
   id: string;
   prompt: string;
   windowDays: number;
+  relatedTweets: number;
   startedAt: number;
   finishedAt: number | null;
   status: "running" | "paused" | "failed" | "done";
@@ -205,6 +245,8 @@ export interface GrokStatus {
   model: string;
   windowDaysDefault: number;
   windowDaysMax: number;
+  relatedTweetsDefault: number;
+  relatedTweetsMax: number;
 }
 
 export interface BandSettings {
@@ -376,12 +418,18 @@ export const api = {
       body: JSON.stringify({ include_mayhem }),
     }).then((r) => json<{ ok: boolean; include_mayhem: boolean }>(r)),
   quota: () => fetch("/api/quota").then((r) => json<QuotaMap>(r)),
-  createNarrativeScan: (prompt: string, windowDays: number) =>
+  createNarrativeScan: (prompt: string, windowDays: number, relatedTweets: number) =>
     fetch("/api/narrative-scans", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt, windowDays }),
+      body: JSON.stringify({ prompt, windowDays, relatedTweets }),
     }).then((r) => json<{ scanId: string }>(r)),
+  listNarrativeTokens: (scanId?: string) =>
+    fetch(`/api/narrative-tokens${scanId ? `?scan=${encodeURIComponent(scanId)}` : ""}`).then((r) =>
+      json<NarrativeTokenCard[]>(r)
+    ),
+  getNarrativeToken: (id: string) =>
+    fetch(`/api/narrative-tokens/${id}`).then((r) => json<NarrativeTokenDetail>(r)),
   startNarrativeScan: (id: string) => fetch(`/api/narrative-scans/${id}/start`, { method: "POST" }).then(json),
   getNarrativeScan: (id: string) => fetch(`/api/narrative-scans/${id}`).then((r) => json<NarrativeScanInfo>(r)),
   listNarrativeScans: () => fetch("/api/narrative-scans").then((r) => json<NarrativeScanInfo[]>(r)),

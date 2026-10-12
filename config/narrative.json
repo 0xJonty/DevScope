@@ -6,5 +6,7 @@
     "timeout_ms": 240000
   },
   "window_days_default": 2,
-  "window_days_max": 7
+  "window_days_max": 7,
+  "related_tweets_default": 3,
+  "related_tweets_max": 5
 }

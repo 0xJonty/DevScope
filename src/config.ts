@@ -62,6 +62,8 @@ const narrativeSchema = z.object({
   }),
   window_days_default: z.number().int().min(1),
   window_days_max: z.number().int().min(1),
+  related_tweets_default: z.number().int().min(1),
+  related_tweets_max: z.number().int().min(1).max(5),
 });
 
 const providersSchema = z.object({

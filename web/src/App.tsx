@@ -3,6 +3,7 @@ import ScanView from "./views/ScanView";
 import TokenScanView from "./views/TokenScanView";
 import NarrativeScanView from "./views/NarrativeScanView";
 import NarrativesView from "./views/NarrativesView";
+import NarrativeTokenView from "./views/NarrativeTokenView";
 import LibraryView from "./views/LibraryView";
 import TokenLibraryView from "./views/TokenLibraryView";
 import ProfileView from "./views/ProfileView";
@@ -15,6 +16,7 @@ export type View =
   | { name: "tokenScan" }
   | { name: "narrativeScan" }
   | { name: "narratives" }
+  | { name: "narrativeToken"; id: string }
   | { name: "library" }
   | { name: "tokenLibrary" }
   | { name: "profile"; wallet: string }
@@ -54,7 +56,8 @@ export default function App() {
             const active =
               view.name === item.key ||
               (item.key === "library" && (view.name === "profile" || view.name === "devToken")) ||
-              (item.key === "tokenLibrary" && view.name === "token");
+              (item.key === "tokenLibrary" && view.name === "token") ||
+              (item.key === "narratives" && view.name === "narrativeToken");
             return (
               <button
                 key={item.key}
@@ -72,8 +75,16 @@ export default function App() {
       <main className="flex-1 min-w-0 px-10 py-8 max-w-[1800px] mx-auto">
         {view.name === "scan" && <ScanView />}
         {view.name === "tokenScan" && <TokenScanView openToken={(mint) => setView({ name: "token", mint })} />}
-        {view.name === "narrativeScan" && <NarrativeScanView openLibrary={() => setView({ name: "narratives" })} />}
-        {view.name === "narratives" && <NarrativesView />}
+        {view.name === "narrativeScan" && (
+          <NarrativeScanView
+            openLibrary={() => setView({ name: "narratives" })}
+            openToken={(id) => setView({ name: "narrativeToken", id })}
+          />
+        )}
+        {view.name === "narratives" && <NarrativesView openToken={(id) => setView({ name: "narrativeToken", id })} />}
+        {view.name === "narrativeToken" && (
+          <NarrativeTokenView id={view.id} back={() => setView({ name: "narratives" })} />
+        )}
         {view.name === "library" && <LibraryView openProfile={(wallet) => setView({ name: "profile", wallet })} />}
         {view.name === "tokenLibrary" && <TokenLibraryView openToken={(mint) => setView({ name: "token", mint })} />}
         {view.name === "profile" && (

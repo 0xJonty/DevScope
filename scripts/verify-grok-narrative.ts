@@ -20,7 +20,7 @@ const focus = positionals[0] ?? "the single biggest story on X right now";
 const days = Number(values.days);
 
 const result = await grokNarrativeSearch({
-  prompt: buildGrokTrendPrompt(focus, days),
+  prompt: buildGrokTrendPrompt(focus, days, 2),
   windowDays: days,
   onActivity: (m) => console.log(`[grok] ${m}`),
 });

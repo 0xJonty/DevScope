@@ -136,6 +136,8 @@ export const narrativeScans = sqliteTable("narrative_scans", {
   id: text("id").primaryKey(),
   prompt: text("prompt").notNull(),
   windowDays: integer("window_days").notNull(),
+  /** Most-viral posts requested per narrative (1–5, 0.13.0). */
+  relatedTweets: integer("related_tweets").notNull().default(3),
   startedAt: integer("started_at").notNull(),
   finishedAt: integer("finished_at"),
   status: text("status").notNull().$type<"running" | "paused" | "failed" | "done">(),
@@ -144,6 +146,22 @@ export const narrativeScans = sqliteTable("narrative_scans", {
   grokRaw: text("grok_raw", { mode: "json" }).$type<{ text: string; citations: string[] }>(),
   narratives: text("narratives", { mode: "json" }).$type<Record<string, unknown>>(),
   promptVersion: text("prompt_version"),
+});
+
+/** One tokenable narrative = one row (0.13.0) — each finished Narrative X Scan
+ * fans its validated narratives out here so every narrative gets its own
+ * addressable token page (Narratives library). json holds the full narrative
+ * object (ticker/name/fee/posts/...); imagePath reserved for image gen. Like
+ * vamp candidates, these NEVER enter `tokens` — they are concepts, not
+ * deployed coins. */
+export const narrativeTokens = sqliteTable("narrative_tokens", {
+  id: text("id").primaryKey(),
+  scanId: text("scan_id").notNull(),
+  createdAt: integer("created_at").notNull(),
+  /** Position in the scan's report (biggest-first ordering). */
+  rank: integer("rank").notNull(),
+  json: text("json", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  imagePath: text("image_path"),
 });
 
 export const theses = sqliteTable(

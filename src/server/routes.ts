@@ -249,12 +249,18 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       .int()
       .min(1, "window must be at least 1 day")
       .max(narrativeConfig.window_days_max, `window must be at most ${narrativeConfig.window_days_max} days`),
+    relatedTweets: z
+      .number()
+      .int()
+      .min(1, "related tweets must be at least 1")
+      .max(narrativeConfig.related_tweets_max, `related tweets must be at most ${narrativeConfig.related_tweets_max}`)
+      .default(narrativeConfig.related_tweets_default),
   });
 
   app.post("/api/narrative-scans", async (req, reply) => {
     const parsed = newNarrativeScanBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
-    const scanId = createNarrativeScan(parsed.data.prompt, parsed.data.windowDays);
+    const scanId = createNarrativeScan(parsed.data.prompt, parsed.data.windowDays, parsed.data.relatedTweets);
     return { scanId };
   });
 
@@ -289,6 +295,76 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/narrative-scans/:id/events", sseEvents);
 
+  // ── Narrative tokens (one tokenable narrative = one page) ─────────────
+  /** Card shape for the Narratives library + scan results — lean, no posts. */
+  const narrativeTokenCard = (row: typeof schema.narrativeTokens.$inferSelect) => {
+    const n = row.json as Record<string, unknown>;
+    return {
+      id: row.id,
+      scanId: row.scanId,
+      createdAt: row.createdAt,
+      rank: row.rank,
+      imagePath: row.imagePath,
+      title: n.title ?? null,
+      ticker: n.ticker ?? null,
+      tokenName: n.token_name ?? null,
+      category: n.category ?? null,
+      momentum: n.momentum ?? null,
+      confidence: n.confidence ?? null,
+      feeType: n.fee_type ?? null,
+    };
+  };
+
+  app.get("/api/narrative-tokens", async (req) => {
+    const q = req.query as { scan?: string };
+    const rows = q.scan
+      ? db
+          .select()
+          .from(schema.narrativeTokens)
+          .where(eq(schema.narrativeTokens.scanId, q.scan))
+          .orderBy(schema.narrativeTokens.rank)
+          .all()
+      : db
+          .select()
+          .from(schema.narrativeTokens)
+          .orderBy(desc(schema.narrativeTokens.createdAt), schema.narrativeTokens.rank)
+          .limit(200)
+          .all();
+    return rows.map(narrativeTokenCard);
+  });
+
+  app.get("/api/narrative-tokens/:id", async (req, reply) => {
+    const row = db
+      .select()
+      .from(schema.narrativeTokens)
+      .where(eq(schema.narrativeTokens.id, (req.params as { id: string }).id))
+      .get();
+    if (!row) return reply.code(404).send({ error: "narrative token not found" });
+    const scan = db
+      .select()
+      .from(schema.narrativeScans)
+      .where(eq(schema.narrativeScans.id, row.scanId))
+      .get();
+    return {
+      id: row.id,
+      scanId: row.scanId,
+      createdAt: row.createdAt,
+      rank: row.rank,
+      imagePath: row.imagePath,
+      narrative: row.json,
+      scan: scan
+        ? {
+            prompt: scan.prompt,
+            windowDays: scan.windowDays,
+            relatedTweets: scan.relatedTweets,
+            grokModel: scan.grokModel,
+            promptVersion: scan.promptVersion,
+            finishedAt: scan.finishedAt,
+          }
+        : null,
+    };
+  });
+
   // ── Grok auth (subscription OAuth for Narrative X Scans) ──────────────
   let grokLoginError: string | null = null;
   let grokLoginPending = false;
@@ -305,6 +381,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       model: narrativeConfig.grok.model,
       windowDaysDefault: narrativeConfig.window_days_default,
       windowDaysMax: narrativeConfig.window_days_max,
+      relatedTweetsDefault: narrativeConfig.related_tweets_default,
+      relatedTweetsMax: narrativeConfig.related_tweets_max,
     };
   });
 

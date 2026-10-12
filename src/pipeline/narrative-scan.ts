@@ -22,13 +22,14 @@ import type { ScanEvent } from "./types.js";
  * Self-contained: nothing here touches `tokens` or the provider quota ledger.
  */
 
-export function createNarrativeScan(prompt: string, windowDays: number): string {
+export function createNarrativeScan(prompt: string, windowDays: number, relatedTweets: number): string {
   const id = randomUUID();
   db.insert(schema.narrativeScans)
     .values({
       id,
       prompt,
       windowDays,
+      relatedTweets,
       startedAt: Date.now(),
       status: "paused",
       statusReason: "queued",
@@ -66,7 +67,7 @@ async function executeNarrativeScan(id: string): Promise<void> {
     if (!scan.grokRaw) {
       emit({ type: "progress", message: `Asking Grok for X narratives (window: ${scan.windowDays}d) — x_search runs multi-round, expect 1–3 min…` });
       const result = await grokNarrativeSearch({
-        prompt: buildGrokTrendPrompt(scan.prompt, scan.windowDays),
+        prompt: buildGrokTrendPrompt(scan.prompt, scan.windowDays, scan.relatedTweets),
         windowDays: scan.windowDays,
         onActivity: (message) => emit({ type: "agent", message }),
       });
@@ -91,6 +92,7 @@ async function executeNarrativeScan(id: string): Promise<void> {
         buildNarrativePrompt({
           userPrompt: scan.prompt,
           windowDays: scan.windowDays,
+          relatedTweets: scan.relatedTweets,
           grokText: raw.text,
           citations: raw.citations,
           grokModel: scan.grokModel ?? narrativeConfig.grok.model,
@@ -124,8 +126,33 @@ async function executeNarrativeScan(id: string): Promise<void> {
         .run();
       emit({
         type: "progress",
-        message: `${report.narratives.length} narratives formed (${report.stale_dropped.length} stale item(s) dropped).`,
+        message: `${report.narratives.length} narratives formed (${report.stale_dropped.length} item(s) filtered out).`,
       });
+      scan = getNarrativeScan(id);
+    }
+
+    // N3 — fan each narrative out to its own narrative_tokens row (its token
+    // page in the Narratives library). Idempotent: existing rows short-circuit.
+    const existingTokens = db
+      .select()
+      .from(schema.narrativeTokens)
+      .where(eq(schema.narrativeTokens.scanId, id))
+      .all();
+    if (existingTokens.length === 0 && scan.narratives) {
+      const report = scan.narratives as unknown as NarrativeReport;
+      const now = Date.now();
+      for (const [rank, narrative] of report.narratives.entries()) {
+        db.insert(schema.narrativeTokens)
+          .values({
+            id: randomUUID(),
+            scanId: id,
+            createdAt: now,
+            rank,
+            json: narrative as unknown as Record<string, unknown>,
+          })
+          .run();
+      }
+      emit({ type: "progress", message: `${report.narratives.length} narrative token(s) stored.` });
     }
 
     setStatus(id, "done");

@@ -15,7 +15,7 @@ Usage:
   npm run cli -- resume <scanId>
   npm run cli -- estimate <wallet> [--window <n>]
   npm run cli -- vamp <mint>
-  npm run cli -- narrative "<prompt>" [--days <1-7>]
+  npm run cli -- narrative "<prompt>" [--days <1-7>] [--tweets <1-5>]
   npm run cli -- grok-login
   npm run cli -- grok-logout
   npm run cli -- quota
@@ -82,6 +82,7 @@ async function main(): Promise<void> {
       pin: { type: "string" },
       through: { type: "string", default: "s7" },
       days: { type: "string" },
+      tweets: { type: "string" },
     },
     strict: false,
   });
@@ -172,11 +173,15 @@ async function main(): Promise<void> {
       if (!Number.isInteger(days) || days < 1 || days > narrativeConfig.window_days_max) {
         throw new Error(`--days must be an integer 1-${narrativeConfig.window_days_max}`);
       }
+      const tweets = values.tweets ? Number(values.tweets) : narrativeConfig.related_tweets_default;
+      if (!Number.isInteger(tweets) || tweets < 1 || tweets > narrativeConfig.related_tweets_max) {
+        throw new Error(`--tweets must be an integer 1-${narrativeConfig.related_tweets_max}`);
+      }
       const { createNarrativeScan, getNarrativeScan, startNarrativeScan } = await import(
         "./pipeline/narrative-scan.js"
       );
-      const scanId = createNarrativeScan(target ?? "", days);
-      console.log(`Narrative scan ${scanId} created (window ${days}d).\n`);
+      const scanId = createNarrativeScan(target ?? "", days, tweets);
+      console.log(`Narrative scan ${scanId} created (window ${days}d, ${tweets} posts/narrative).\n`);
       scanEvents.on(`scan:${scanId}`, (ev) => console.log(`[narrative] ${ev.message}`));
       startNarrativeScan(scanId);
       await new Promise<void>((resolveDone) => {

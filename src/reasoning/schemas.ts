@@ -147,37 +147,46 @@ export const vampVerdictJsonSchema = {
 } as const;
 
 /** Narrative report output contract (PLAN.md §7d N2). Layer B structures
- * Grok's raw X trend report into discrete narratives; every key_posts URL must
+ * Grok's raw X trend report into tokenable narratives — each one a ready
+ * token concept (ticker/name/fee recommendation); every key_posts URL must
  * come from the report/citations (checked by prompt rule, spot-checked by the
- * pipeline against the citation list). */
-export const narrativeReportSchema = z.object({
-  narratives: z.array(
+ * pipeline against the citation list). Fee vocabulary matches the vamp
+ * deciding-factor set: creator_fees | holder_rewards | fee_share | charity. */
+export const NARRATIVE_FEE_TYPES = ["creator_fees", "holder_rewards", "fee_share", "charity"] as const;
+
+export const narrativeSchema = z.object({
+  title: z.string().min(2),
+  summary: z.string().min(40),
+  ticker: z.string().min(2).max(12),
+  token_name: z.string().min(2).max(40),
+  fee_type: z.enum(NARRATIVE_FEE_TYPES),
+  fee_reason: z.string(),
+  category: z.enum([
+    "breaking_news",
+    "politics",
+    "crypto",
+    "meme",
+    "culture",
+    "tech",
+    "drama",
+    "other",
+  ]),
+  momentum: z.enum(["exploding", "rising", "peaking", "fading"]),
+  started: z.string(),
+  key_posts: z.array(
     z.object({
-      title: z.string().min(2),
-      summary: z.string().min(40),
-      category: z.enum([
-        "breaking_news",
-        "politics",
-        "crypto",
-        "meme",
-        "culture",
-        "tech",
-        "sports",
-        "drama",
-        "other",
-      ]),
-      momentum: z.enum(["exploding", "rising", "peaking", "fading"]),
-      started: z.string(),
-      key_posts: z.array(
-        z.object({
-          url: z.string(),
-          note: z.string(),
-        })
-      ),
-      confidence: z.enum(["high", "medium", "low"]),
-      unknowns: z.string(),
+      url: z.string(),
+      note: z.string(),
     })
   ),
+  confidence: z.enum(["high", "medium", "low"]),
+  unknowns: z.string(),
+});
+
+export type Narrative = z.infer<typeof narrativeSchema>;
+
+export const narrativeReportSchema = z.object({
+  narratives: z.array(narrativeSchema),
   stale_dropped: z.array(
     z.object({
       title: z.string(),
@@ -201,9 +210,23 @@ export const narrativeReportJsonSchema = {
             type: "string",
             description: "What the story/trend IS and why X cares right now, 2-5 sentences",
           },
+          ticker: {
+            type: "string",
+            description: "Optimal token ticker: the canonical word/phrase of the moment, 2-12 chars, UPPERCASE, spelled exactly as the crowd spells it",
+          },
+          token_name: {
+            type: "string",
+            description: "Optimal token display name (pump.fun name field): the narrative's canonical phrasing",
+          },
+          fee_type: {
+            type: "string",
+            enum: ["creator_fees", "holder_rewards", "fee_share", "charity"],
+            description: "Fee configuration that best fits the narrative",
+          },
+          fee_reason: { type: "string", description: "One line: why this fee type fits this narrative" },
           category: {
             type: "string",
-            enum: ["breaking_news", "politics", "crypto", "meme", "culture", "tech", "sports", "drama", "other"],
+            enum: ["breaking_news", "politics", "crypto", "meme", "culture", "tech", "drama", "other"],
           },
           momentum: {
             type: "string",
@@ -225,12 +248,25 @@ export const narrativeReportJsonSchema = {
           confidence: { type: "string", enum: ["high", "medium", "low"] },
           unknowns: { type: "string" },
         },
-        required: ["title", "summary", "category", "momentum", "started", "key_posts", "confidence", "unknowns"],
+        required: [
+          "title",
+          "summary",
+          "ticker",
+          "token_name",
+          "fee_type",
+          "fee_reason",
+          "category",
+          "momentum",
+          "started",
+          "key_posts",
+          "confidence",
+          "unknowns",
+        ],
       },
     },
     stale_dropped: {
       type: "array",
-      description: "Items in the report older than the window with no fresh development — dropped, with reason",
+      description: "Report items dropped as stale (outside the window) or non-tokenable (sports/generic news) — with reason",
       items: {
         type: "object",
         properties: {

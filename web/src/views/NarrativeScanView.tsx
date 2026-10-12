@@ -4,9 +4,10 @@ import {
   subscribeScanEvents,
   type GrokStatus,
   type NarrativeScanInfo,
+  type NarrativeTokenCard,
   type ScanEvent,
 } from "../api";
-import NarrativeCards from "../components/NarrativeCards";
+import NarrativeTokenTile from "../components/NarrativeTokenTile";
 import GrokConnect from "../components/GrokConnect";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -18,10 +19,19 @@ const STATUS_STYLES: Record<string, string> = {
 
 const windowLabel = (days: number) => (days === 1 ? "last 24 hours" : `last ${days} days`);
 
-export default function NarrativeScanView({ openLibrary }: { openLibrary: () => void }) {
+export default function NarrativeScanView({
+  openLibrary,
+  openToken,
+}: {
+  openLibrary: () => void;
+  openToken: (id: string) => void;
+}) {
   const [prompt, setPrompt] = useState("");
   const [days, setDays] = useState(2);
   const [maxDays, setMaxDays] = useState(7);
+  const [tweets, setTweets] = useState(3);
+  const [maxTweets, setMaxTweets] = useState(5);
+  const [tokens, setTokens] = useState<NarrativeTokenCard[] | null>(null);
   const [grok, setGrok] = useState<GrokStatus | null>(null);
   const [scan, setScan] = useState<NarrativeScanInfo | null>(null);
   const [events, setEvents] = useState<ScanEvent[]>([]);
@@ -34,14 +44,22 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
   const handleGrokStatus = useCallback((s: GrokStatus) => {
     setGrok(s);
     setMaxDays(s.windowDaysMax);
+    setMaxTweets(s.relatedTweetsMax);
     if (!daysInitialized.current) {
       daysInitialized.current = true;
       setDays(s.windowDaysDefault);
+      setTweets(s.relatedTweetsDefault);
     }
   }, []);
 
   const refreshScan = useCallback((id: string) => {
-    api.getNarrativeScan(id).then(setScan, () => undefined);
+    api.getNarrativeScan(id).then(
+      (s) => {
+        setScan(s);
+        if (s.status === "done") api.listNarrativeTokens(id).then(setTokens, () => undefined);
+      },
+      () => undefined
+    );
   }, []);
 
   // Resume watching the latest narrative scan on mount.
@@ -72,8 +90,9 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
   const start = async () => {
     setError(null);
     setEvents([]);
+    setTokens(null);
     try {
-      const res = await api.createNarrativeScan(prompt.trim(), days);
+      const res = await api.createNarrativeScan(prompt.trim(), days, tweets);
       await api.startNarrativeScan(res.scanId);
       refreshScan(res.scanId);
     } catch (err) {
@@ -132,6 +151,23 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
           </div>
         </div>
 
+        <div>
+          <span className="text-dim text-xs block mb-1.5">Related tweets per narrative</span>
+          <div className="flex gap-1.5" role="group" aria-label="Related tweets per narrative">
+            {Array.from({ length: maxTweets }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setTweets(n)}
+                className={`w-9 h-8 rounded-md border text-sm ${
+                  tweets === n ? "border-accent text-accent" : "border-line text-dim hover:text-ink"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-3 items-center">
           <button
             onClick={start}
@@ -181,15 +217,33 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
             ))}
           </div>
 
-          {scan.status === "done" && scan.narratives && (
+          {scan.status === "done" && tokens && (
             <div className="space-y-3">
-              <div className="flex items-baseline justify-between max-w-3xl">
-                <h3 className="text-sm font-medium text-dim">Narratives</h3>
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-sm font-medium text-dim">Narratives — one token concept each</h3>
                 <button onClick={openLibrary} className="text-accent text-sm hover:underline">
                   Open in Narratives →
                 </button>
               </div>
-              <NarrativeCards report={scan.narratives} />
+              <div className="grid grid-cols-2 min-[1500px]:grid-cols-3 gap-4">
+                {tokens.map((t) => (
+                  <NarrativeTokenTile key={t.id} t={t} onOpen={openToken} />
+                ))}
+              </div>
+              {scan.narratives && scan.narratives.stale_dropped.length > 0 && (
+                <details>
+                  <summary className="text-faint text-xs cursor-pointer select-none">
+                    {scan.narratives.stale_dropped.length} item(s) filtered out (stale or non-tokenable)
+                  </summary>
+                  <ul className="mt-2 space-y-1 border-l border-line pl-3">
+                    {scan.narratives.stale_dropped.map((s, i) => (
+                      <li key={i} className="text-xs text-dim">
+                        <span className="text-ink/80">{s.title}</span> — {s.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
         </section>
