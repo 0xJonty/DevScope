@@ -422,8 +422,6 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       .min(0)
       .max(deployConfig.dev_buy_sol_max, `dev buy capped at ${deployConfig.dev_buy_sol_max} SOL`)
       .default(0),
-    slippagePct: z.number().min(0).max(50).default(deployConfig.slippage_pct_default),
-    priorityFeeSol: z.number().min(0).max(0.05).default(deployConfig.priority_fee_sol_default),
     holderReward: z.boolean().default(false),
     vanity: z.boolean().default(true),
     dryRun: z.boolean().default(false),
@@ -479,14 +477,13 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/api/deploy/estimate", async (req, reply) => {
-    const q = req.query as { devBuySol?: string; priorityFeeSol?: string; wallet?: string };
+    const q = req.query as { devBuySol?: string; wallet?: string };
     const devBuySol = Number(q.devBuySol ?? 0);
-    const priorityFeeSol = Number(q.priorityFeeSol ?? deployConfig.priority_fee_sol_default);
-    if (!Number.isFinite(devBuySol) || !Number.isFinite(priorityFeeSol) || devBuySol < 0) {
-      return reply.code(400).send({ error: "devBuySol and priorityFeeSol must be numbers" });
+    if (!Number.isFinite(devBuySol) || devBuySol < 0) {
+      return reply.code(400).send({ error: "devBuySol must be a non-negative number" });
     }
     try {
-      return await estimateDeployCost(devBuySol, priorityFeeSol, q.wallet || null);
+      return await estimateDeployCost(devBuySol, deployConfig.priority_fee_sol, q.wallet || null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return reply.code(msg.includes("wallet") ? 400 : 502).send({ error: msg });
@@ -534,7 +531,11 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const body = parsed.data;
 
     if (!body.dryRun) {
-      const estimate = await estimateDeployCost(body.devBuySol, body.priorityFeeSol, body.walletPubkey);
+      const estimate = await estimateDeployCost(
+        body.devBuySol,
+        deployConfig.priority_fee_sol,
+        body.walletPubkey
+      );
       if (!estimate.sufficient) {
         return reply.code(400).send({
           error: `underfunded: deploy needs ~${estimate.totalSol.toFixed(4)} SOL, deployer holds ${estimate.balanceSol.toFixed(4)} SOL`,
@@ -553,8 +554,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           telegram: body.telegram,
           website: body.website,
           devBuySol: body.devBuySol,
-          slippagePct: body.slippagePct,
-          priorityFeeSol: body.priorityFeeSol,
+          slippageBps: deployConfig.create_slippage_bps.sol,
+          priorityFeeSol: deployConfig.priority_fee_sol,
           holderReward: body.holderReward,
           dryRun: body.dryRun,
         },

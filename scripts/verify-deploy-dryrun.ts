@@ -34,7 +34,7 @@ const id = createDeployment({
     ticker: "DRYRUN",
     description: "verify-deploy-dryrun.ts — simulation only, never sent",
     devBuySol: 0.001,
-    slippagePct: 10,
+    slippageBps: 0,
     priorityFeeSol: 0.0005,
     holderReward: false,
     dryRun: true,

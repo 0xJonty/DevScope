@@ -47,8 +47,6 @@ export default function DeployForm({
   const [telegram, setTelegram] = useState("");
   const [website, setWebsite] = useState("");
   const [devBuySol, setDevBuySol] = useState("0");
-  const [slippagePct, setSlippagePct] = useState("10");
-  const [priorityFeeSol, setPriorityFeeSol] = useState("0.0005");
   const [holderReward, setHolderReward] = useState(prefill?.holderReward ?? false);
   const [vanity, setVanity] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -104,11 +102,7 @@ export default function DeployForm({
 
   useEffect(() => () => unsubscribe.current?.(), []);
 
-  const numbers = {
-    devBuySol: Number(devBuySol),
-    slippagePct: Number(slippagePct),
-    priorityFeeSol: Number(priorityFeeSol),
-  };
+  const devBuy = Number(devBuySol);
   const selectedWallet = deployer?.wallets.find((w) => w.pubkey === walletPubkey) ?? null;
   const formError = !walletPubkey
     ? "no deploy wallet — import one in Settings → Wallets"
@@ -118,15 +112,15 @@ export default function DeployForm({
         ? "ticker required"
         : !hasImage
           ? "image required"
-          : Object.entries(numbers).find(([, v]) => !Number.isFinite(v) || v < 0)
-            ? "dev buy / slippage / priority fee must be non-negative numbers"
+          : !Number.isFinite(devBuy) || devBuy < 0
+            ? "dev buy must be a non-negative number"
             : null;
 
   const review = async () => {
     setBusy(true);
     setError(null);
     try {
-      setEstimate(await api.deployEstimate(numbers.devBuySol, numbers.priorityFeeSol, walletPubkey));
+      setEstimate(await api.deployEstimate(devBuy, walletPubkey));
       setPhase("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -147,7 +141,7 @@ export default function DeployForm({
           twitter: twitter.trim() || undefined,
           telegram: telegram.trim() || undefined,
           website: website.trim() || undefined,
-          ...numbers,
+          devBuySol: devBuy,
           holderReward,
           vanity,
           dryRun,
@@ -254,7 +248,13 @@ export default function DeployForm({
 
           <div className="space-y-1">
             <label className={LABEL}>Description</label>
-            <textarea className={`${INPUT} h-20 resize-y`} maxLength={1000} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea
+              className={`${INPUT} h-20 resize-none`}
+              maxLength={1000}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="optional"
+            />
           </div>
 
           <div className="space-y-1">
@@ -291,14 +291,6 @@ export default function DeployForm({
             <div className="space-y-1">
               <label className={LABEL}>Dev buy (SOL)</label>
               <input className={INPUT} value={devBuySol} onChange={(e) => setDevBuySol(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <label className={LABEL}>Slippage %</label>
-              <input className={INPUT} value={slippagePct} onChange={(e) => setSlippagePct(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <label className={LABEL}>Priority fee (SOL)</label>
-              <input className={INPUT} value={priorityFeeSol} onChange={(e) => setPriorityFeeSol(e.target.value)} />
             </div>
           </div>
 

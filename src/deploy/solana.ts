@@ -19,6 +19,6 @@ export function lamportsToSol(lamports: number): number {
 }
 
 /** Total priority fee (SOL) → per-CU price in micro-lamports for the configured CU limit. */
-export function priorityFeeMicroLamports(priorityFeeSol: number): number {
+export function priorityFeeMicroLamports(priorityFeeSol: number = deployConfig.priority_fee_sol): number {
   return Math.round((priorityFeeSol * LAMPORTS_PER_SOL * 1_000_000) / deployConfig.compute_units);
 }

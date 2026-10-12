@@ -69,8 +69,11 @@ const narrativeSchema = z.object({
 const deploySchema = z.object({
   pin_backend: z.enum(["pumpfun", "pinata"]),
   compute_units: z.number().int().min(100000).max(1400000),
-  priority_fee_sol_default: z.number().min(0),
-  slippage_pct_default: z.number().min(0).max(50),
+  priority_fee_sol: z.number().min(0),
+  create_slippage_bps: z.object({
+    sol: z.number().int().min(0).max(5000),
+    token: z.number().int().min(0).max(5000),
+  }),
   dev_buy_sol_max: z.number().min(0),
   create_cost_sol_estimate: z.number().min(0),
   vanity: z.object({

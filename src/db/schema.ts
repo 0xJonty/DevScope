@@ -184,7 +184,10 @@ export interface DeployParams {
   telegram?: string;
   website?: string;
   devBuySol: number;
-  slippagePct: number;
+  /** Applied values, recorded for the row — not user inputs (0.15.0: slippage
+   * is a per-quote constant mirroring pump.fun's frontend, priority fee comes
+   * from config/deploy.json). */
+  slippageBps: number;
   priorityFeeSol: number;
   holderReward: boolean;
   dryRun: boolean;

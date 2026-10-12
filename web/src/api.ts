@@ -312,8 +312,6 @@ export interface DeployRequest {
   telegram?: string;
   website?: string;
   devBuySol: number;
-  slippagePct: number;
-  priorityFeeSol: number;
   holderReward: boolean;
   vanity: boolean;
   dryRun: boolean;
@@ -526,10 +524,10 @@ export const api = {
     }).then(json),
   removeWallet: (pubkey: string) =>
     fetch(`/api/wallets/${pubkey}`, { method: "DELETE" }).then(json),
-  deployEstimate: (devBuySol: number, priorityFeeSol: number, wallet?: string | null) =>
-    fetch(
-      `/api/deploy/estimate?devBuySol=${devBuySol}&priorityFeeSol=${priorityFeeSol}${wallet ? `&wallet=${wallet}` : ""}`
-    ).then((r) => json<DeployEstimate>(r)),
+  deployEstimate: (devBuySol: number, wallet?: string | null) =>
+    fetch(`/api/deploy/estimate?devBuySol=${devBuySol}${wallet ? `&wallet=${wallet}` : ""}`).then((r) =>
+      json<DeployEstimate>(r)
+    ),
   createDeployment: (payload: DeployRequest, image: File | null) => {
     const form = new FormData();
     // payload first — multipart fields must precede the (large) file part.

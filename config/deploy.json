@@ -1,9 +1,9 @@
 {
-  "comment": "Token deployer (PLAN.md §7e). pin_backend: 'pumpfun' uses pump.fun's unofficial metadata upload endpoint, 'pinata' pins via Pinata (needs PINATA_JWT). Costs in SOL. create_cost_sol_estimate = rent + accounts headline shown in the pre-deploy confirm. vanity.pool_target keypairs ending in vanity.suffix are pre-ground in data/vanity/.",
+  "comment": "Token deployer (PLAN.md §7e). pin_backend: 'pumpfun' uses pump.fun's unofficial metadata upload endpoint, 'pinata' pins via Pinata (needs PINATA_JWT). Costs in SOL. create_cost_sol_estimate = rent + accounts headline shown in the pre-deploy confirm. priority_fee_sol is applied silently to every deploy (no UI field — no launchpad exposes one). create_slippage_bps mirrors pump.fun's own frontend constants (SOL creates 0, token-quoted creates 1000): a create+buy is atomic on a fresh curve, so user-facing slippage is meaningless. vanity.pool_target keypairs ending in vanity.suffix are pre-ground in data/vanity/.",
   "pin_backend": "pumpfun",
   "compute_units": 500000,
-  "priority_fee_sol_default": 0.0005,
-  "slippage_pct_default": 10,
+  "priority_fee_sol": 0.0005,
+  "create_slippage_bps": { "sol": 0, "token": 1000 },
   "dev_buy_sol_max": 10,
   "create_cost_sol_estimate": 0.025,
   "vanity": { "suffix": "pump", "pool_target": 1 },

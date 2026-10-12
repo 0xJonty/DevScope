@@ -248,8 +248,9 @@ async function executeDeployment(id: string): Promise<void> {
           amount: solAmount,
           quoteMint: NATIVE_MINT,
         });
-        // Create+buy is atomic on a fresh curve, so slippage is belt-and-braces.
-        const minOut = quoted.muln(Math.round((100 - p.slippagePct) * 100)).divn(10000);
+        // Atomic create+buy on a fresh curve — pump.fun's own frontend uses 0
+        // slippage for SOL creates; p.slippageBps mirrors its constants.
+        const minOut = quoted.muln(10000 - p.slippageBps).divn(10000);
         return PUMP_SDK.createV2AndBuyInstructions({
           global,
           mint: mintPk,
