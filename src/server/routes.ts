@@ -1,9 +1,32 @@
 import { readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { FastifyReply, FastifyRequest, FastifyInstance } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { BAND_DEFAULTS, bands, config, filters, narrativeConfig, scanDefaults } from "../config.js";
+import {
+  BAND_DEFAULTS,
+  bands,
+  config,
+  deployConfig,
+  filters,
+  narrativeConfig,
+  scanDefaults,
+} from "../config.js";
+import {
+  ALLOWED_IMAGE_MIMES,
+  createDeployment,
+  deployedByNarrativeToken,
+  deploymentInFlight,
+  estimateDeployCost,
+  getDeployment,
+  listDeployments,
+  reconcileDeployment,
+  startDeployment,
+} from "../deploy/pipeline.js";
+import { getDeployerStatus } from "../deploy/keypair.js";
+import { getConnection } from "../deploy/solana.js";
+import { ensureVanityPool, getVanityState } from "../deploy/vanity.js";
 import { db, schema } from "../db/index.js";
 import { getAllUsage } from "../providers/quota.js";
 import { createScan, estimateScanCost, requestPause, startScan } from "../pipeline/orchestrator.js";
@@ -330,7 +353,8 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           .orderBy(desc(schema.narrativeTokens.createdAt), schema.narrativeTokens.rank)
           .limit(200)
           .all();
-    return rows.map(narrativeTokenCard);
+    const deployed = deployedByNarrativeToken(rows.map((r) => r.id));
+    return rows.map((r) => ({ ...narrativeTokenCard(r), deployed: deployed.get(r.id) ?? null }));
   });
 
   app.get("/api/narrative-tokens/:id", async (req, reply) => {
@@ -352,6 +376,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       rank: row.rank,
       imagePath: row.imagePath,
       narrative: row.json,
+      deployed: deployedByNarrativeToken([row.id]).get(row.id) ?? null,
       scan: scan
         ? {
             prompt: scan.prompt,
@@ -364,6 +389,179 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         : null,
     };
   });
+
+  // ── Token deploys (PLAN.md §7e — pure Layer A) ─────────────────────────
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: deployConfig.image_max_bytes, files: 1 },
+  });
+
+  const optionalUrl = z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().url("must be a full URL").max(200).optional()
+  );
+
+  const deployBody = z.object({
+    name: z.string().trim().min(1, "name required").max(32, "name must be ≤32 chars"),
+    ticker: z
+      .string()
+      .trim()
+      .transform((s) => s.replace(/^\$/, "").toUpperCase())
+      .pipe(z.string().min(1, "ticker required").max(10, "ticker must be ≤10 chars")),
+    description: z.string().trim().max(1000, "description must be ≤1000 chars").default(""),
+    twitter: optionalUrl,
+    telegram: optionalUrl,
+    website: optionalUrl,
+    devBuySol: z
+      .number()
+      .min(0)
+      .max(deployConfig.dev_buy_sol_max, `dev buy capped at ${deployConfig.dev_buy_sol_max} SOL`)
+      .default(0),
+    slippagePct: z.number().min(0).max(50).default(deployConfig.slippage_pct_default),
+    priorityFeeSol: z.number().min(0).max(0.05).default(deployConfig.priority_fee_sol_default),
+    holderReward: z.boolean().default(false),
+    vanity: z.boolean().default(true),
+    dryRun: z.boolean().default(false),
+    narrativeTokenId: z.string().nullish(),
+  });
+
+  app.get("/api/deployer", async (_req, reply) => {
+    ensureVanityPool();
+    try {
+      const status = await getDeployerStatus(getConnection());
+      return { ...status, vanity: getVanityState() };
+    } catch (err) {
+      return reply
+        .code(502)
+        .send({ error: `RPC unreachable: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
+
+  app.get("/api/deploy/estimate", async (req, reply) => {
+    const q = req.query as { devBuySol?: string; priorityFeeSol?: string };
+    const devBuySol = Number(q.devBuySol ?? 0);
+    const priorityFeeSol = Number(q.priorityFeeSol ?? deployConfig.priority_fee_sol_default);
+    if (!Number.isFinite(devBuySol) || !Number.isFinite(priorityFeeSol) || devBuySol < 0) {
+      return reply.code(400).send({ error: "devBuySol and priorityFeeSol must be numbers" });
+    }
+    try {
+      return await estimateDeployCost(devBuySol, priorityFeeSol);
+    } catch (err) {
+      return reply
+        .code(502)
+        .send({ error: `RPC unreachable: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
+
+  app.post("/api/deployments", async (req, reply) => {
+    if (deploymentInFlight()) {
+      return reply.code(409).send({ error: "a deploy is already in flight — wait for it to finish" });
+    }
+    let payloadRaw: string | null = null;
+    let image: { data: Buffer; mimeType: string } | null = null;
+    try {
+      for await (const part of req.parts()) {
+        if (part.type === "file") {
+          if (part.fieldname !== "image") {
+            await part.toBuffer(); // drain unexpected files
+            continue;
+          }
+          if (!ALLOWED_IMAGE_MIMES.includes(part.mimetype)) {
+            return reply
+              .code(400)
+              .send({ error: `image must be one of: ${ALLOWED_IMAGE_MIMES.join(", ")}` });
+          }
+          image = { data: await part.toBuffer(), mimeType: part.mimetype };
+        } else if (part.fieldname === "payload") {
+          payloadRaw = part.value as string;
+        }
+      }
+    } catch (err) {
+      return reply.code(400).send({
+        error: `upload failed (image over ${Math.round(deployConfig.image_max_bytes / 1024 / 1024)}MB?): ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+    if (!payloadRaw) return reply.code(400).send({ error: "missing payload field" });
+
+    let payloadJson: unknown;
+    try {
+      payloadJson = JSON.parse(payloadRaw);
+    } catch {
+      return reply.code(400).send({ error: "payload is not valid JSON" });
+    }
+    const parsed = deployBody.safeParse(payloadJson);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    const body = parsed.data;
+
+    if (!body.dryRun) {
+      const estimate = await estimateDeployCost(body.devBuySol, body.priorityFeeSol);
+      if (!estimate.sufficient) {
+        return reply.code(400).send({
+          error: `underfunded: deploy needs ~${estimate.totalSol.toFixed(4)} SOL, deployer holds ${estimate.balanceSol.toFixed(4)} SOL`,
+        });
+      }
+    }
+
+    try {
+      const deploymentId = createDeployment({
+        params: {
+          name: body.name,
+          ticker: body.ticker,
+          description: body.description,
+          twitter: body.twitter,
+          telegram: body.telegram,
+          website: body.website,
+          devBuySol: body.devBuySol,
+          slippagePct: body.slippagePct,
+          priorityFeeSol: body.priorityFeeSol,
+          holderReward: body.holderReward,
+          dryRun: body.dryRun,
+        },
+        vanity: body.vanity,
+        narrativeTokenId: body.narrativeTokenId ?? null,
+        image,
+      });
+      startDeployment(deploymentId);
+      return { deploymentId };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  const deploymentRow = (row: ReturnType<typeof getDeployment>) => ({
+    id: row.id,
+    mint: row.mint,
+    narrativeTokenId: row.narrativeTokenId,
+    status: row.status,
+    statusReason: row.statusReason,
+    name: row.params.name,
+    ticker: row.params.ticker,
+    devBuySol: row.params.devBuySol,
+    dryRun: row.params.dryRun,
+    metadataUri: row.metadataUri,
+    imageUrl: row.imagePath ? `/images/${row.imagePath.split("/").pop()}` : null,
+    signature: row.signature,
+    vanity: row.vanity,
+    createdAt: row.createdAt,
+    finishedAt: row.finishedAt,
+  });
+
+  app.get("/api/deployments", async () => listDeployments().map(deploymentRow));
+
+  app.get("/api/deployments/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    try {
+      let row = getDeployment(id);
+      if (row.status === "confirming" || row.status === "sending") {
+        await reconcileDeployment(id).catch(() => {});
+        row = getDeployment(id);
+      }
+      return deploymentRow(row);
+    } catch {
+      return reply.code(404).send({ error: "deployment not found" });
+    }
+  });
+
+  app.get("/api/deployments/:id/events", sseEvents);
 
   // ── Grok auth (subscription OAuth for Narrative X Scans) ──────────────
   let grokLoginError: string | null = null;

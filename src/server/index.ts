@@ -7,6 +7,7 @@ import { recoverInterruptedScans } from "../pipeline/orchestrator.js";
 import { recoverInterruptedTokenScans } from "../pipeline/token-scan.js";
 import { recoverInterruptedVampScans } from "../pipeline/vamp-scan.js";
 import { recoverInterruptedNarrativeScans } from "../pipeline/narrative-scan.js";
+import { recoverInterruptedDeployments } from "../deploy/pipeline.js";
 import { registerApiRoutes } from "./routes.js";
 
 const app = Fastify({ logger: { level: "info" } });
@@ -17,6 +18,7 @@ recoverInterruptedScans();
 recoverInterruptedTokenScans();
 recoverInterruptedVampScans();
 recoverInterruptedNarrativeScans();
+recoverInterruptedDeployments();
 
 const webDist = join(config.root, "web", "dist");
 if (existsSync(webDist)) {
