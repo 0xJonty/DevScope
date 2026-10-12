@@ -10,7 +10,7 @@ Personal local tool (WSL2 Ubuntu, Windows 11 Chrome client). v1 features: Dev Sc
 - Data providers sit behind the `DataProvider` interface with a monthly quota ledger. Cache is permanent (on-chain history is immutable).
 - Reasoning runs on the owner's Claude Max 5x subscription: assert subscription auth on startup; never let a stray `ANTHROPIC_API_KEY` bill silently. Auth mode stays a config flag (`subscription` | `api_key`).
 - Grok (xAI) is the second subscription-auth provider (Narrative X Scan only, PLAN.md §7d): device-code OAuth tokens in `data/grok-auth.json`, `GROK_AUTH_MODE` flag with the same silent-billing guard (`assertGrokAuthMode`). It is NOT a `DataProvider` and never enters the monthly quota ledger — xAI's own weekly allowance is the quota. The OAuth surface is unofficial (Grok CLI client id); `api_key` is the sanctioned fallback if xAI 403s the tier.
-- Server binds localhost only. No private keys exist anywhere in this system.
+- Server binds localhost only. No private keys exist anywhere in this system EXCEPT the burner deployer keypair (`data/deployer-keypair.json`, gitignored, 0600) that signs pump.fun deploys (PLAN.md §7e) — fund only what you'll spend, never import a funded wallet. The secret never leaves `src/deploy/keypair.ts` and is never logged.
 
 ## Git policy — commit and push automatically
 
