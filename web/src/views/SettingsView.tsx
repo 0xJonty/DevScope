@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { api, numberError, type Settings } from "../api";
 import QuotaMeters from "../components/QuotaMeters";
 import GrokConnect from "../components/GrokConnect";
+import WalletsPanel from "../components/WalletsPanel";
 
 export default function SettingsView() {
+  const [tab, setTab] = useState<"general" | "wallets">("general");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [workedMode, setWorkedMode] = useState<"bonded" | "ath_usd">("bonded");
   const [workedMin, setWorkedMin] = useState<string>("");
@@ -90,10 +92,27 @@ export default function SettingsView() {
 
   return (
     <div className="space-y-10 max-w-2xl">
-      <header>
+      <header className="space-y-4">
         <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+        <div className="flex gap-1 border-b border-line">
+          {(["general", "wallets"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-sm capitalize -mb-px border-b-2 ${
+                tab === t ? "border-accent text-ink" : "border-transparent text-dim hover:text-ink"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </header>
 
+      {tab === "wallets" && <WalletsPanel />}
+
+      {tab === "general" && (
+        <>
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-dim">Provider quota (this month)</h2>
         <QuotaMeters quota={settings.quota} />
@@ -201,6 +220,8 @@ export default function SettingsView() {
           </dd>
         </dl>
       </section>
+        </>
+      )}
     </div>
   );
 }

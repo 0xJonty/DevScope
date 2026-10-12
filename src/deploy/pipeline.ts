@@ -22,7 +22,7 @@ import { scanEvents } from "../pipeline/events.js";
 import type { ScanEvent } from "../pipeline/types.js";
 import { ensureLookupTable, getCachedLookupTable, staticKeysAcross } from "./alt.js";
 import { getPinner } from "./ipfs.js";
-import { getDeployerKeypair } from "./keypair.js";
+import { getWallet } from "./wallets.js";
 import { ensureVanityPool, takeVanityKeypair } from "./vanity.js";
 import { getConnection, lamportsToSol, priorityFeeMicroLamports, solToLamports } from "./solana.js";
 
@@ -157,10 +157,11 @@ export interface DeployEstimate {
 
 export async function estimateDeployCost(
   devBuySol: number,
-  priorityFeeSol: number
+  priorityFeeSol: number,
+  walletPubkey?: string | null
 ): Promise<DeployEstimate> {
   const connection = getConnection();
-  const balance = await connection.getBalance(getDeployerKeypair().publicKey);
+  const balance = await connection.getBalance(getWallet(walletPubkey).publicKey);
   const txFeeSol = lamportsToSol(5000 * 2); // base fee × 2 signatures
   const totalSol = deployConfig.create_cost_sol_estimate + devBuySol + priorityFeeSol + txFeeSol;
   return {
@@ -230,7 +231,7 @@ async function executeDeployment(id: string): Promise<void> {
     emit({ type: "stage", message: "Building create transaction…" });
     const connection = getConnection();
     const onlineSdk = new OnlinePumpSdk(connection);
-    const deployer = getDeployerKeypair();
+    const deployer = getWallet(p.walletPubkey);
 
     const global = await onlineSdk.fetchGlobal();
     const feeConfig = p.devBuySol > 0 ? await onlineSdk.fetchFeeConfig() : null;
@@ -320,8 +321,18 @@ async function executeDeployment(id: string): Promise<void> {
         }
       } else {
         tables = [
-          await ensureLookupTable(connection, deployer, wanted, (m) =>
-            emit({ type: "progress", message: m })
+          await ensureLookupTable(
+            connection,
+            deployer,
+            wanted,
+            (m) => emit({ type: "progress", message: m }),
+            (authority) => {
+              try {
+                return getWallet(authority);
+              } catch {
+                return null;
+              }
+            }
           ),
         ];
       }

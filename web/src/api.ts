@@ -253,9 +253,15 @@ export interface GrokStatus {
 
 // ── Token deploys (PLAN.md §7e) ──────────────────────────────────────────
 
-export interface DeployerStatus {
+export interface WalletInfo {
+  name: string;
   pubkey: string;
+  isMain: boolean;
   balanceSol: number;
+}
+
+export interface DeployerStatus {
+  wallets: WalletInfo[];
   vanity: { ready: number; grinding: boolean; attempts: number; ratePerSec: number };
 }
 
@@ -287,6 +293,7 @@ export interface Deployment {
   statusReason: string | null;
   name: string;
   ticker: string;
+  walletPubkey: string | null;
   devBuySol: number;
   dryRun: boolean;
   metadataUri: string | null;
@@ -311,6 +318,7 @@ export interface DeployRequest {
   vanity: boolean;
   dryRun: boolean;
   narrativeTokenId?: string | null;
+  walletPubkey?: string | null;
 }
 
 export interface BandSettings {
@@ -504,10 +512,24 @@ export const api = {
     ),
   grokLogout: () => fetch("/api/grok/logout", { method: "POST" }).then(json),
   getDeployer: () => fetch("/api/deployer").then((r) => json<DeployerStatus>(r)),
-  deployEstimate: (devBuySol: number, priorityFeeSol: number) =>
-    fetch(`/api/deploy/estimate?devBuySol=${devBuySol}&priorityFeeSol=${priorityFeeSol}`).then((r) =>
-      json<DeployEstimate>(r)
-    ),
+  importWallet: (name: string, secret: string) =>
+    fetch("/api/wallets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, secret }),
+    }).then((r) => json<{ pubkey: string }>(r)),
+  setMainWallet: (pubkey: string) =>
+    fetch("/api/wallets/main", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pubkey }),
+    }).then(json),
+  removeWallet: (pubkey: string) =>
+    fetch(`/api/wallets/${pubkey}`, { method: "DELETE" }).then(json),
+  deployEstimate: (devBuySol: number, priorityFeeSol: number, wallet?: string | null) =>
+    fetch(
+      `/api/deploy/estimate?devBuySol=${devBuySol}&priorityFeeSol=${priorityFeeSol}${wallet ? `&wallet=${wallet}` : ""}`
+    ).then((r) => json<DeployEstimate>(r)),
   createDeployment: (payload: DeployRequest, image: File | null) => {
     const form = new FormData();
     // payload first — multipart fields must precede the (large) file part.

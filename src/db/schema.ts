@@ -178,6 +178,8 @@ export interface DeployParams {
   name: string;
   ticker: string;
   description: string;
+  /** Signing wallet (0.15.0) — absent on 0.14.0 rows (single-burner era). */
+  walletPubkey?: string;
   twitter?: string;
   telegram?: string;
   website?: string;

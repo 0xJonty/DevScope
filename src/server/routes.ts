@@ -24,7 +24,13 @@ import {
   reconcileDeployment,
   startDeployment,
 } from "../deploy/pipeline.js";
-import { getDeployerStatus } from "../deploy/keypair.js";
+import {
+  hasWallets,
+  importWallet,
+  removeWallet,
+  setMainWallet,
+  walletStatuses,
+} from "../deploy/wallets.js";
 import { getConnection } from "../deploy/solana.js";
 import { ensureVanityPool, getVanityState } from "../deploy/vanity.js";
 import { db, schema } from "../db/index.js";
@@ -422,13 +428,14 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     vanity: z.boolean().default(true),
     dryRun: z.boolean().default(false),
     narrativeTokenId: z.string().nullish(),
+    walletPubkey: walletField.nullish(),
   });
 
   app.get("/api/deployer", async (_req, reply) => {
     ensureVanityPool();
     try {
-      const status = await getDeployerStatus(getConnection());
-      return { ...status, vanity: getVanityState() };
+      const wallets = hasWallets() ? await walletStatuses(getConnection()) : [];
+      return { wallets, vanity: getVanityState() };
     } catch (err) {
       return reply
         .code(502)
@@ -436,19 +443,53 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  const importWalletBody = z.object({
+    name: z.string().trim().max(40).default(""),
+    secret: z.string().trim().min(32, "paste the wallet's private key (base58 or 64-byte JSON array)"),
+  });
+
+  app.post("/api/wallets", async (req, reply) => {
+    const parsed = importWalletBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    try {
+      return importWallet(parsed.data.name, parsed.data.secret);
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post("/api/wallets/main", async (req, reply) => {
+    const parsed = z.object({ pubkey: walletField }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: zodMsg(parsed.error) });
+    try {
+      setMainWallet(parsed.data.pubkey);
+      return { ok: true };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.delete("/api/wallets/:pubkey", async (req, reply) => {
+    try {
+      removeWallet((req.params as { pubkey: string }).pubkey);
+      return { ok: true };
+    } catch (err) {
+      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.get("/api/deploy/estimate", async (req, reply) => {
-    const q = req.query as { devBuySol?: string; priorityFeeSol?: string };
+    const q = req.query as { devBuySol?: string; priorityFeeSol?: string; wallet?: string };
     const devBuySol = Number(q.devBuySol ?? 0);
     const priorityFeeSol = Number(q.priorityFeeSol ?? deployConfig.priority_fee_sol_default);
     if (!Number.isFinite(devBuySol) || !Number.isFinite(priorityFeeSol) || devBuySol < 0) {
       return reply.code(400).send({ error: "devBuySol and priorityFeeSol must be numbers" });
     }
     try {
-      return await estimateDeployCost(devBuySol, priorityFeeSol);
+      return await estimateDeployCost(devBuySol, priorityFeeSol, q.wallet || null);
     } catch (err) {
-      return reply
-        .code(502)
-        .send({ error: `RPC unreachable: ${err instanceof Error ? err.message : String(err)}` });
+      const msg = err instanceof Error ? err.message : String(err);
+      return reply.code(msg.includes("wallet") ? 400 : 502).send({ error: msg });
     }
   });
 
@@ -493,7 +534,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     const body = parsed.data;
 
     if (!body.dryRun) {
-      const estimate = await estimateDeployCost(body.devBuySol, body.priorityFeeSol);
+      const estimate = await estimateDeployCost(body.devBuySol, body.priorityFeeSol, body.walletPubkey);
       if (!estimate.sufficient) {
         return reply.code(400).send({
           error: `underfunded: deploy needs ~${estimate.totalSol.toFixed(4)} SOL, deployer holds ${estimate.balanceSol.toFixed(4)} SOL`,
@@ -507,6 +548,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           name: body.name,
           ticker: body.ticker,
           description: body.description,
+          walletPubkey: body.walletPubkey ?? undefined,
           twitter: body.twitter,
           telegram: body.telegram,
           website: body.website,
@@ -535,6 +577,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     statusReason: row.statusReason,
     name: row.params.name,
     ticker: row.params.ticker,
+    walletPubkey: row.params.walletPubkey ?? null,
     devBuySol: row.params.devBuySol,
     dryRun: row.params.dryRun,
     metadataUri: row.metadataUri,

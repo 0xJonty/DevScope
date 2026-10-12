@@ -55,6 +55,7 @@ export default function DeployForm({
 
   const [deployer, setDeployer] = useState<DeployerStatus | null>(null);
   const [deployerError, setDeployerError] = useState<string | null>(null);
+  const [walletPubkey, setWalletPubkey] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<DeployEstimate | null>(null);
   const [phase, setPhase] = useState<"form" | "review" | "running" | "finished">("form");
   const [events, setEvents] = useState<ScanEvent[]>([]);
@@ -82,6 +83,11 @@ export default function DeployForm({
         if (stopped) return;
         setDeployer(status);
         setDeployerError(null);
+        setWalletPubkey((cur) =>
+          cur && status.wallets.some((w) => w.pubkey === cur)
+            ? cur
+            : (status.wallets.find((w) => w.isMain) ?? status.wallets[0])?.pubkey ?? null
+        );
         timer = setTimeout(tick, status.vanity.grinding ? 2000 : 15000);
       } catch (e) {
         if (stopped) return;
@@ -103,21 +109,24 @@ export default function DeployForm({
     slippagePct: Number(slippagePct),
     priorityFeeSol: Number(priorityFeeSol),
   };
-  const formError = !name.trim()
-    ? "name required"
-    : !ticker.trim()
-      ? "ticker required"
-      : !hasImage
-        ? "image required"
-        : Object.entries(numbers).find(([, v]) => !Number.isFinite(v) || v < 0)
-          ? "dev buy / slippage / priority fee must be non-negative numbers"
-          : null;
+  const selectedWallet = deployer?.wallets.find((w) => w.pubkey === walletPubkey) ?? null;
+  const formError = !walletPubkey
+    ? "no deploy wallet — import one in Settings → Wallets"
+    : !name.trim()
+      ? "name required"
+      : !ticker.trim()
+        ? "ticker required"
+        : !hasImage
+          ? "image required"
+          : Object.entries(numbers).find(([, v]) => !Number.isFinite(v) || v < 0)
+            ? "dev buy / slippage / priority fee must be non-negative numbers"
+            : null;
 
   const review = async () => {
     setBusy(true);
     setError(null);
     try {
-      setEstimate(await api.deployEstimate(numbers.devBuySol, numbers.priorityFeeSol));
+      setEstimate(await api.deployEstimate(numbers.devBuySol, numbers.priorityFeeSol, walletPubkey));
       setPhase("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -143,6 +152,7 @@ export default function DeployForm({
           vanity,
           dryRun,
           narrativeTokenId: prefill?.narrativeTokenId ?? null,
+          walletPubkey,
         },
         imageFile
       );
@@ -183,26 +193,47 @@ export default function DeployForm({
       {/* Deployer strip */}
       <div className="border border-line rounded-md px-4 py-2.5 text-xs flex items-center gap-4 flex-wrap">
         {deployer ? (
-          <>
-            <span className="text-dim">
-              deployer{" "}
-              <button
-                className="font-mono text-ink hover:text-accent"
-                title={`${deployer.pubkey} — click to copy`}
-                onClick={() => void navigator.clipboard.writeText(deployer.pubkey)}
-              >
-                {short(deployer.pubkey)}
-              </button>
-            </span>
-            <span className={deployer.balanceSol > 0 ? "text-worked" : "text-failed"}>
-              {deployer.balanceSol.toFixed(4)} SOL
-            </span>
-            <span className="text-faint">
-              {deployer.vanity.grinding
-                ? `grinding …pump mint — ${deployer.vanity.attempts.toLocaleString()} tries @ ${deployer.vanity.ratePerSec.toLocaleString()}/s`
-                : `${deployer.vanity.ready} vanity mint${deployer.vanity.ready === 1 ? "" : "s"} ready`}
-            </span>
-          </>
+          deployer.wallets.length === 0 ? (
+            <span className="text-mid">No deploy wallet — import one in Settings → Wallets.</span>
+          ) : (
+            <>
+              <label className="text-dim flex items-center gap-2">
+                wallet
+                <select
+                  value={walletPubkey ?? ""}
+                  onChange={(e) => setWalletPubkey(e.target.value)}
+                  disabled={phase !== "form"}
+                  className="bg-surface border border-line rounded-md px-2 py-1 text-xs focus:outline-none focus:border-accent"
+                >
+                  {deployer.wallets.map((w) => (
+                    <option key={w.pubkey} value={w.pubkey}>
+                      {w.name}
+                      {w.isMain ? " (main)" : ""} — {short(w.pubkey)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedWallet && (
+                <>
+                  <button
+                    className="font-mono text-dim hover:text-accent"
+                    title={`${selectedWallet.pubkey} — click to copy`}
+                    onClick={() => void navigator.clipboard.writeText(selectedWallet.pubkey)}
+                  >
+                    {short(selectedWallet.pubkey)}
+                  </button>
+                  <span className={selectedWallet.balanceSol > 0 ? "text-worked" : "text-failed"}>
+                    {selectedWallet.balanceSol.toFixed(4)} SOL
+                  </span>
+                </>
+              )}
+              <span className="text-faint">
+                {deployer.vanity.grinding
+                  ? `grinding …pump mint — ${deployer.vanity.attempts.toLocaleString()} tries @ ${deployer.vanity.ratePerSec.toLocaleString()}/s`
+                  : `${deployer.vanity.ready} vanity mint${deployer.vanity.ready === 1 ? "" : "s"} ready`}
+              </span>
+            </>
+          )
         ) : (
           <span className="text-faint">{deployerError ?? "loading deployer…"}</span>
         )}
