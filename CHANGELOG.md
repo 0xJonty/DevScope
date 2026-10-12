@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-10-12 (Grok connection in Settings)
+
+### Added
+- Settings → new "Grok (Narrative X Scan)" section alongside the Claude reasoning block: auth mode, model, narrative prompt version, and live connection status with Connect (device-code flow inline) / Disconnect. Connect UI extracted into a shared `GrokConnect` component also used by the Narrative X Scan page (which now hides it entirely once connected).
+
 ## [0.12.0] — 2026-10-12 (Narrative X Scan)
 
 ### Added

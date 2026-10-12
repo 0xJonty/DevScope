@@ -7,6 +7,7 @@ import {
   type ScanEvent,
 } from "../api";
 import NarrativeCards from "../components/NarrativeCards";
+import GrokConnect from "../components/GrokConnect";
 
 const STATUS_STYLES: Record<string, string> = {
   done: "text-worked border-worked/40",
@@ -22,31 +23,22 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
   const [days, setDays] = useState(2);
   const [maxDays, setMaxDays] = useState(7);
   const [grok, setGrok] = useState<GrokStatus | null>(null);
-  const [login, setLogin] = useState<{ userCode: string; verificationUri: string } | null>(null);
   const [scan, setScan] = useState<NarrativeScanInfo | null>(null);
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  const daysInitialized = useRef(false);
 
-  const refreshGrok = useCallback(() => api.grokStatus().then(setGrok, () => undefined), []);
-
-  useEffect(() => {
-    api.grokStatus().then((s) => {
-      setGrok(s);
+  // GrokConnect owns the status fetch/poll; the view just mirrors it to gate
+  // the start button and seed the slider bounds once.
+  const handleGrokStatus = useCallback((s: GrokStatus) => {
+    setGrok(s);
+    setMaxDays(s.windowDaysMax);
+    if (!daysInitialized.current) {
+      daysInitialized.current = true;
       setDays(s.windowDaysDefault);
-      setMaxDays(s.windowDaysMax);
-    }, () => undefined);
+    }
   }, []);
-
-  // While a device login is pending, watch for the server-side poll to land.
-  useEffect(() => {
-    if (!grok?.loginPending) return;
-    const t = setInterval(() => void refreshGrok(), 3000);
-    return () => clearInterval(t);
-  }, [grok?.loginPending, refreshGrok]);
-  useEffect(() => {
-    if (grok?.loggedIn) setLogin(null);
-  }, [grok?.loggedIn]);
 
   const refreshScan = useCallback((id: string) => {
     api.getNarrativeScan(id).then(setScan, () => undefined);
@@ -77,17 +69,6 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [events]);
 
-  const connect = async () => {
-    setError(null);
-    try {
-      const l = await api.grokLogin();
-      setLogin(l);
-      await refreshGrok();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
   const start = async () => {
     setError(null);
     setEvents([]);
@@ -114,28 +95,7 @@ export default function NarrativeScanView({ openLibrary }: { openLibrary: () => 
       </header>
 
       <section className="space-y-4 max-w-xl">
-        {needsLogin && (
-          <div className="border border-mid/40 rounded-md px-4 py-3 text-sm space-y-2">
-            <p className="text-mid">Grok is not connected{grok.authMode === "subscription" ? " — sign in with the X account that holds your subscription." : ""}.</p>
-            {login ? (
-              <div className="space-y-1">
-                <p className="text-ink">
-                  Open{" "}
-                  <a href={login.verificationUri} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">
-                    {login.verificationUri}
-                  </a>{" "}
-                  and enter code <span className="font-mono text-accent">{login.userCode}</span>
-                </p>
-                <p className="text-faint text-xs">{grok.loginPending ? "Waiting for approval…" : "Login window expired — connect again."}</p>
-              </div>
-            ) : (
-              <button onClick={connect} className="bg-accent text-bg font-medium rounded-md px-4 py-1.5 text-sm">
-                Connect Grok
-              </button>
-            )}
-            {grok.loginError && <p className="text-failed text-xs">{grok.loginError}</p>}
-          </div>
-        )}
+        <GrokConnect onStatus={handleGrokStatus} />
 
         <div>
           <label className="text-dim text-xs block mb-1.5" htmlFor="narrative-prompt">

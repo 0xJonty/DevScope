@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, numberError, type Settings } from "../api";
 import QuotaMeters from "../components/QuotaMeters";
+import GrokConnect from "../components/GrokConnect";
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -180,6 +181,24 @@ export default function SettingsView() {
           <dd>{settings.scanDefaults.window_n} deploys (max {settings.scanDefaults.window_max})</dd>
           <dt className="text-faint">Dossier cap</dt>
           <dd>{settings.scanDefaults.dossier.cap} tokens</dd>
+        </dl>
+      </section>
+
+      <section className="space-y-3 text-sm">
+        <h2 className="text-sm font-medium text-dim">Grok (Narrative X Scan)</h2>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5">
+          <dt className="text-faint">Auth mode</dt>
+          <dd className={settings.grok.authMode === "subscription" ? "text-worked" : "text-mid"}>
+            {settings.grok.authMode}
+          </dd>
+          <dt className="text-faint">Model</dt>
+          <dd className="font-mono text-xs self-center">{settings.grok.model}</dd>
+          <dt className="text-faint">Narrative prompt</dt>
+          <dd className="font-mono text-xs self-center">{settings.promptVersions.narrative}</dd>
+          <dt className="text-faint">Connection</dt>
+          <dd>
+            <GrokConnect showWhenConnected />
+          </dd>
         </dl>
       </section>
     </div>

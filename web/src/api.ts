@@ -217,7 +217,8 @@ export interface Settings {
   bands: BandSettings & { bands_version: string };
   bandDefaults: BandSettings;
   filters: { include_mayhem: boolean };
-  promptVersions: { thesis: string; synthesis: string };
+  promptVersions: { thesis: string; synthesis: string; vamp: string; narrative: string };
+  grok: { authMode: "subscription" | "api_key"; model: string };
   quota: QuotaMap;
 }
 
