@@ -215,6 +215,24 @@ The report also stays on the scan row (`narratives` JSON — the N2 checkpoint);
 
 ---
 
+## 7e. Pipeline — Token Deploy (added 0.14.0)
+
+**Input:** full pump.fun token details — name (≤32), ticker (≤10, uppercased, `$` stripped), description (≤1000), image (png/jpg/gif/webp ≤5MB upload, or the narrative token's image), optional twitter/telegram/website URLs, dev buy (SOL, 0 allowed), slippage %, priority fee (SOL), vanity toggle (…pump mint), holder-rewards toggle. Launched from the Deploy page or a narrative token's deploy modal (prefilled: `token_name`/`ticker` in the crowd's exact spelling, `summary` → description, `fee_type=holder_rewards` → the holderReward flag, narrative image if generated).
+
+**Pure Layer A** — no Agent SDK anywhere. Direct on-chain via the official `@pump-fun/pump-sdk` (zero third-party fee — PumpPortal's 0.5% rejected); the only costs are rent/accounts (~0.02 SOL), network + priority fee, and pump.fun's own protocol fee inside the dev buy. DevScope adds **no fee or tax of any kind**.
+
+One row per attempt on `deployments` (single atomic tx — no resume; a failed deploy is a new row). Steps, status persisted each, SSE over the scan bus (`/api/deployments/:id/events`):
+
+1. **pinning** — image + pump.fun-convention metadata JSON pinned behind the swappable `MetadataPinner` interface (`config/deploy.json pin_backend`): `pumpfun` = pump.fun's own upload endpoint (default, zero config, §16), `pinata` = PINATA_JWT fallback. Fail → nothing spent.
+2. **mint** — vanity grind-ahead pool (`data/vanity/`, worker-thread ed25519 grind, ~120k tries/s on 12 cores ≈ sub-minute per …pump key; consumed file deleted before use, background refill) or `Keypair.generate()` when vanity is off.
+3. **building** — `createV2Instruction` (no dev buy) or `createV2AndBuyInstructions` (atomic create+buy; min-out from the SDK curve quote × (1 − slippage)); `mayhemMode: false` always; compute-budget ixs prepended. A create+buy overflows the 1232-byte packet (~1263 measured) → the deployer-owned address lookup table (`data/deploy-alt.json`, one-time ~0.002 SOL, static keys derived by diffing instructions across two throwaway mints) absorbs the static accounts; unfunded dry runs drop the CB ixs instead. Signed (burner + mint), **simulated** — simulation failure fails loud with program logs, nothing spent. `dryRun` stops here (`dry_run_ok`).
+4. **sending** — `sendRawTransaction(skipPreflight)` — signature stored immediately.
+5. **confirming** — blockhash confirm → `confirmed` (pump.fun/solscan links in the feed). A confirm timeout is NEVER auto-failed: reconciliation (`getSignatureStatuses`, on read + boot recovery) resolves it; an unknown signature only fails after 5 min.
+
+Deploys run on their own queue (concurrency 1, never behind a Layer B scan; one in flight at a time, HTTP 409 otherwise) with a balance pre-check (estimate vs burner balance) and a review → confirm step in the UI showing the full cost breakdown. Deployed tokens NEVER enter `tokens` — they'd pollute the deployer stats this tool studies; confirmed deploys mark their narrative token with a `deployed` chip instead.
+
+---
+
 ## 8. Reasoning layer details
 
 - **Model routing:** theses on the default Sonnet-class model; synthesis may use a stronger model (config). Keep per-run context tight — one dossier per run, never the whole set.
@@ -236,6 +254,7 @@ The report also stays on the scan row (`narratives` JSON — the N2 checkpoint);
 - `vamp_verdicts(mint, vamp_scan_id, json, prompt_version)` — PK (mint, vamp_scan_id)
 - `narrative_scans(id PK, prompt, window_days, related_tweets, started_at, finished_at, status, status_reason, grok_model, grok_raw JSON, narratives JSON, prompt_version)` — Narrative X Scan runs (§7d), self-contained
 - `narrative_tokens(id PK, scan_id, created_at, rank, json, image_path)` — one tokenable narrative per row (§7d N3); json holds the full token concept
+- `deployments(id PK, mint, narrative_token_id, status, status_reason, params JSON, metadata_uri, image_path, signature, vanity, created_at, finished_at)` — Token Deploy attempts (§7e); never feeds `tokens`
 - `theses(mint, scan_id, json, prompt_version)` — scan_id is a deployer-scan OR token-scan id
 - `profiles(wallet PK, file_path, updated_at, verdict_snippet)`
 - `provider_usage(provider, month, calls_used, soft_limit)`
@@ -280,6 +299,7 @@ Dark only: near-black background (#0c0e12-ish), one muted accent, high-contrast 
 6. **Settings** — quota meters per provider, defaults, bands editor (worked mode + thresholds, reset to defaults, 0.11.0), mayhem include/exclude toggle (0.11.0), auth-mode flag, prompt version display, Grok connection panel (0.12.1: auth mode, model, connect/disconnect — same device-code flow as the scan page, shared `GrokConnect` component).
 7. **Narrative X Scan** (added 0.12.0, token-concept rework 0.13.0) — optional focus prompt, freshness slider (24h–7d), related-tweets selector (1–5), Grok connect panel (device-code login inline when not connected), start → live feed (SSE), result as a grid of narrative-token tiles + collapsed filtered-out list.
 8. **Narratives** (added 0.12.0, reworked 0.13.0) — library of every tokenable narrative as its own token card (placeholder monogram image until image gen, name, $TICKER, momentum glyph, category/fee/confidence chips), grouped under scan-date separators; click → narrative token page (image, ticker/name, fee type + reason, narrative description, all viral posts linked, unknowns, scan meta).
+9. **Deploy** (added 0.14.0) — pump.fun launcher: deployer strip (burner pubkey/balance, vanity pool state), full token form, review → confirm with cost breakdown vs balance, dry-run button, SSE progress feed, recent-deploys list. Narrative tiles/pages get a deploy button opening the same form in a modal, prefilled from the narrative; deployed narratives show a pump.fun-linked chip.
 
 ---
 

@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-10-12 (built-in token deployer)
+
+### Added
+- **Token Deploy (PLAN.md §7e)** — launch pump.fun tokens from DevScope, pure Layer A, zero DevScope fee: direct on-chain create via the official `@pump-fun/pump-sdk` v4 (PumpPortal's 0.5% dev-buy fee avoided). Atomic create(+dev-buy) tx: pin → mint → build → simulate → send → confirm, each status persisted on the new `deployments` table (migration 0006) and streamed over SSE. Confirm timeouts reconcile against the chain (on read + boot) instead of false-failing.
+- **Deploy page** — full token form (name/ticker/description/image/socials/dev buy/slippage/priority fee), deployer strip, review → confirm with live cost breakdown vs balance, dry-run mode (free mainnet simulation), recent-deploys list.
+- **Narrative deploy modal** — deploy button on narrative tiles and token pages; the app's first modal, prefilled with the crowd's exact ticker/name, summary as description, narrative image, and `fee_type=holder_rewards` mapped to the on-chain holder-rewards flag (permanent per coin, shown before confirm). Deployed narratives show a pump.fun-linked chip; deploys never enter `tokens`.
+- **Burner deployer keypair** at `data/deployer-keypair.json` (gitignored, 0600, generated on first use) — the one exception to the no-private-keys rule (PLAN.md §12 amended): fund only what you'll spend.
+- **Vanity mint pool** — worker-thread ed25519 grind keeps a `…pump`-suffix keypair ready in `data/vanity/` (~120k tries/s on 12 cores ≈ sub-minute per key); consumed keys are deleted before use and refilled in the background.
+- **Swappable metadata pinning** — pump.fun's own upload endpoint by default (verified alive server-side 2026-10-12 despite deprecation reports), Pinata (`PINATA_JWT`) as the config-flag fallback.
+- **Deployer-owned address lookup table** — a create+buy overflows the 1232-byte packet (~1263 measured); a one-time ALT (static keys derived by diffing instructions across two throwaway mints) frees ~300 bytes and keeps priority fees possible. Unfunded dry runs drop the compute-budget ixs instead.
+- New env: `SOLANA_RPC_URL` (public default; free Helius recommended), optional `PINATA_JWT`. New config: `config/deploy.json`. New verify scripts: `verify-deploy-pin.ts`, `verify-vanity-grind.ts`, `verify-deploy-dryrun.ts` (all free).
+
 ## [0.13.1] — 2026-10-12 (narrative scan resilience)
 
 ### Fixed

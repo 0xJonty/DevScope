@@ -1,6 +1,6 @@
 # DevScope
 
-Local tool giving a pump.fun deployer an edge: paste a rival deployer's wallet, get a persistent AI-reasoned `*-PROFILE.md` of their style, strengths, failure modes, and actionable signals. Spec in [PLAN.md](PLAN.md). Three scan types: **Dev Scan** (full deployer profile), **Token Scan** (single contract address → one research thesis, kept in its own Token Library), and **Narrative X Scan** (Grok searches live X globally for viral memes/politics/breaking news; Claude turns each into a ready token concept — ticker, name, fee type, viral posts — kept in the Narratives library).
+Local tool giving a pump.fun deployer an edge: paste a rival deployer's wallet, get a persistent AI-reasoned `*-PROFILE.md` of their style, strengths, failure modes, and actionable signals. Spec in [PLAN.md](PLAN.md). Three scan types: **Dev Scan** (full deployer profile), **Token Scan** (single contract address → one research thesis, kept in its own Token Library), and **Narrative X Scan** (Grok searches live X globally for viral memes/politics/breaking news; Claude turns each into a ready token concept — ticker, name, fee type, viral posts — kept in the Narratives library). Plus a built-in **Token Deploy** page (0.14.0): launch pump.fun tokens straight from DevScope — direct program calls via the official pump SDK, zero third-party fee, one click from any narrative token.
 
 Two strictly separated layers: deterministic code handles all bulk data (enumeration, ATH scoring, classification, quota, cache); Claude (via the Agent SDK on your Max subscription) only ever sees ≤ ~25 curated token dossiers per scan.
 
@@ -83,12 +83,15 @@ For a single token instead: **Token Scan** tab → paste the contract address �
 
 **Narrative X Scan**: connect Grok once (button on the page, or `grok-login`), optionally type a focus, set the freshness slider (24h–7d) and how many viral posts you want per narrative (1–5), hit **Find narratives**. Grok researches live X globally with its x_search tool (1–3 min) — trending memes, political flashpoints and breaking news with meme energy only (no sports, no generic headlines); Claude turns each narrative into a token concept: optimal ticker + name in the crowd's exact spelling, a recommended fee type with reason, and the viral posts linked. Each narrative gets its own token page in the **Narratives** tab, grouped by scan date (token images are placeholders until image gen lands).
 
+**Token Deploy**: the **Deploy** tab (or the deploy button on any narrative token, which prefills the form from the narrative). First use generates a burner deployer keypair at `data/deployer-keypair.json` — send it only what you'll spend (recover leftovers by importing that file into any Solana wallet). Mints are pre-ground to end in `…pump` (toggleable). `SOLANA_RPC_URL` defaults to the public endpoint; a free [Helius](https://www.helius.dev) key makes sends reliable. Metadata pins through pump.fun's own endpoint by default; if that dies, set `pin_backend: "pinata"` in `config/deploy.json` with a free `PINATA_JWT`. **Dry run** simulates the whole deploy without spending.
+
 ## Repo map
 
 ```
 src/providers/    DataProvider implementations + quota ledger (every call metered); grok.ts (xAI OAuth + x_search)
 src/pipeline/     S1–S7, each checkpointed + resumable; orchestrator; fingerprint
 src/reasoning/    Agent SDK wrapper + versioned prompts (thesis/synthesis)
+src/deploy/       Token Deploy (PLAN.md §7e): burner keypair, IPFS pinning, vanity grind, tx pipeline
 src/db/           Drizzle schema (SQLite at data/app.db); migrations in /drizzle
 src/server/       Fastify (localhost only) + SSE + static UI
 web/              React/Vite/Tailwind dark UI
