@@ -69,6 +69,8 @@ export default function DeployForm({
 
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [quoteMint, setQuoteMint] = useState<string>(SOL_MINT);
+  const [quoteSearch, setQuoteSearch] = useState("");
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [charities, setCharities] = useState<DeployCharity[]>([]);
   const [charityTerm, setCharityTerm] = useState("");
   const [charityResults, setCharityResults] = useState<Charity[]>([]);
@@ -96,6 +98,13 @@ export default function DeployForm({
 
   const isSolQuote = quoteMint === SOL_MINT;
   const quoteSymbol = quotes.find((q) => q.mint === quoteMint)?.symbol ?? "SOL";
+  const quoteMatches = useMemo(() => {
+    const term = quoteSearch.trim().toLowerCase();
+    const pool = term
+      ? quotes.filter((q) => q.symbol.toLowerCase().includes(term) || q.mint.toLowerCase().startsWith(term))
+      : quotes;
+    return pool.slice(0, 50);
+  }, [quotes, quoteSearch]);
   const charityBps = charities.reduce((acc, c) => acc + c.shareBps, 0);
 
   // Deployer strip: poll fast while the grind runs, slow otherwise.
@@ -354,18 +363,55 @@ export default function DeployForm({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className={LABEL}>Pairing</label>
-              <select
-                value={quoteMint}
-                onChange={(e) => setQuoteMint(e.target.value)}
-                className={INPUT}
-                title="The quote the bonding curve trades against (pump.fun supported list)"
-              >
-                {quotes.map((q) => (
-                  <option key={q.mint} value={q.mint}>
-                    {q.symbol}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  className={INPUT}
+                  value={quoteOpen ? quoteSearch : quoteSymbol}
+                  placeholder={`search ${quotes.length} quotes…`}
+                  title="The quote the bonding curve trades against (pump.fun supported list) — type to search by symbol or mint"
+                  onFocus={() => {
+                    setQuoteSearch("");
+                    setQuoteOpen(true);
+                  }}
+                  onBlur={() => setTimeout(() => setQuoteOpen(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setQuoteOpen(false);
+                    if (e.key === "Enter" && quoteMatches[0]) {
+                      setQuoteMint(quoteMatches[0].mint);
+                      setQuoteOpen(false);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  onChange={(e) => setQuoteSearch(e.target.value)}
+                />
+                {quoteOpen && (
+                  <ul className="absolute z-10 mt-1 w-64 bg-raised border border-line rounded-md max-h-56 overflow-y-auto">
+                    {quoteMatches.map((q) => (
+                      <li key={q.mint}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault() /* keep focus so onBlur doesn't race the click */}
+                          onClick={() => {
+                            setQuoteMint(q.mint);
+                            setQuoteOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-surface flex items-baseline gap-2 ${
+                            q.mint === quoteMint ? "text-accent" : ""
+                          }`}
+                        >
+                          <span>{q.symbol}</span>
+                          <span className="text-faint text-xs ml-auto font-mono shrink-0">
+                            {q.mint.slice(0, 4)}…{q.mint.slice(-4)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    {quoteMatches.length === 0 && (
+                      <li className="px-3 py-2 text-xs text-faint">no quote matches “{quoteSearch.trim()}”</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <label className={LABEL}>Dev buy ({quoteSymbol})</label>

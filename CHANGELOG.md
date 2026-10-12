@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-10-12
+
+### Changed
+- Deploy pairing is now a searchable combobox (type to filter the ~200 supported quotes by symbol or mint, Enter picks the top match) instead of a plain select.
+
 ## [0.16.0] — 2026-10-12 (band rename: failed → mid → success)
 
 ### Changed
